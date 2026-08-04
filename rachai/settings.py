@@ -45,13 +45,22 @@ else:
     # Na Vercel o domínio é gerado no deploy, então ele entra automaticamente —
     # ALLOWED_HOSTS só precisa ser preenchido à mão para domínio próprio.
     ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split() + _vercel_hosts()
-    if not ALLOWED_HOSTS:
-         raise ImproperlyConfigured("ALLOWED_HOSTS não foi definido no ambiente de produção!")
-
     CSRF_TRUSTED_ORIGINS = (
         os.getenv('CSRF_TRUSTED_ORIGINS', '').split()
         + [f'https://{host}' for host in _vercel_hosts()]
     )
+
+    if ON_VERCEL:
+        # As variáveis acima são congeladas no momento do deploy, então renomear
+        # o projeto ou adicionar um alias quebraria o host até o próximo deploy.
+        # O curinga cobre previews e qualquer *.vercel.app de uma vez. Só a
+        # Vercel roteia esses domínios até aqui, então não afrouxa nada na prática.
+        ALLOWED_HOSTS.append('.vercel.app')
+        CSRF_TRUSTED_ORIGINS.append('https://*.vercel.app')
+
+    if not ALLOWED_HOSTS:
+         raise ImproperlyConfigured("ALLOWED_HOSTS não foi definido no ambiente de produção!")
+
     if not CSRF_TRUSTED_ORIGINS:
         raise ImproperlyConfigured("CSRF_TRUSTED_ORIGINS não foi definido no ambiente de produção!")
 
