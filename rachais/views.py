@@ -104,6 +104,12 @@ def _calculate_settlements(balances, participants_qs):
         elif balance < Decimal("-0.01"):
             debtors.append([participant_id, -balance])
 
+    # Sem ordenar, o pareamento saía na ordem em que o banco devolveu as linhas:
+    # a mesma dívida podia aparecer com pessoas diferentes a cada carregamento.
+    # Maior credor com maior devedor também reduz o número de transferências.
+    creditors.sort(key=lambda item: (-item[1], item[0]))
+    debtors.sort(key=lambda item: (-item[1], item[0]))
+
     settlements = []
     i = j = 0
 
