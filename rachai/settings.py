@@ -106,7 +106,29 @@ TEMPLATES = [
 ]
 
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
+def _database_url():
+    """
+    URL de conexão do Postgres.
+
+    Cada provedor publica a mesma coisa com um nome diferente: a integração do
+    Neon cria DATABASE_URL, a Vercel Postgres cria POSTGRES_URL, e as variantes
+    sem pool aparecem com sufixo. Aceitamos todas para não depender de qual foi
+    usada na hora de conectar o banco.
+    """
+    candidatas = (
+        'DATABASE_URL',
+        'POSTGRES_URL',
+        'DATABASE_URL_UNPOOLED',
+        'POSTGRES_URL_NON_POOLING',
+    )
+    for nome in candidatas:
+        valor = os.environ.get(nome)
+        if valor:
+            return valor
+    return None
+
+
+DATABASE_URL = _database_url()
 
 if DATABASE_URL:
     # Formato usado por Vercel/Neon/Supabase: postgres://user:senha@host:porta/banco
@@ -123,6 +145,14 @@ if DATABASE_URL:
         }
     }
 elif IS_PRODUCTION:
+    # Sem host, o psycopg2 tenta um socket Unix local e falha com uma mensagem
+    # confusa ("/var/run/postgresql/.s.PGSQL.5432"). Melhor recusar a subir.
+    if not os.environ.get('DBHOST'):
+        raise ImproperlyConfigured(
+            "Nenhum banco configurado em produção. Defina DATABASE_URL "
+            "(Neon/Vercel Postgres) ou DBHOST/DBNAME/DBUSER/DBPASS (Azure)."
+        )
+
     # Caminho usado pelo deploy no Azure, com as variáveis separadas.
     DATABASES = {
         'default': {

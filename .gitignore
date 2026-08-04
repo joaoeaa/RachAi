@@ -220,6 +220,7 @@ desktop.ini
 !package.json
 !package-lock.json
 !tsconfig.json
+!vercel.json
 *.zip
 *.exe
 # Arquivos estáticos coletados (gerados por collectstatic)
