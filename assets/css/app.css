@@ -10,6 +10,7 @@
   --border-strong: #cad5ea;
   --text-strong: #0f172a;
   --text-muted: #64748b;
+  --brand-logo: #0175ff;   /* azul exato da logo */
   --brand-900: #184d78;
   --brand-800: #1c5e90;
   --brand-600: #1f6df2;
@@ -40,7 +41,9 @@ html, body {
 a { color: inherit; text-decoration: none; }
 
 .site-topbar {
-  background: linear-gradient(90deg, var(--brand-900) 0%, #194d7a 40%, #0f3f63 100%);
+  /* Mesmo desenho de gradiente de antes, agora ancorado no azul da logo.
+     Escurece para a direita, onde ficam os links, para segurar o contraste. */
+  background: linear-gradient(90deg, var(--brand-logo) 0%, #0169ec 45%, #0057cc 100%);
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.25);
   position: sticky;
   top: 0;
@@ -71,7 +74,9 @@ a { color: inherit; text-decoration: none; }
   width: 34px;
   height: 34px;
   object-fit: contain;
-  filter: drop-shadow(0 8px 18px rgba(255, 255, 255, 0.28));
+  /* A marca é azul; sobre a topbar escura ela precisa da versão em branco.
+     brightness(0) zera a cor mantendo o recorte, e invert(1) pinta de branco. */
+  filter: brightness(0) invert(1) drop-shadow(0 8px 18px rgba(255, 255, 255, 0.28));
 }
 
 .brand-name { color: #fff; }
@@ -99,7 +104,7 @@ a { color: inherit; text-decoration: none; }
 
 .top-link--primary {
   background: #fff;
-  color: var(--brand-900);
+  color: var(--brand-logo);
   border-color: #fff;
   box-shadow: 0 8px 16px rgba(255, 255, 255, 0.18);
 }
@@ -283,6 +288,39 @@ a { color: inherit; text-decoration: none; }
 
 .btn-secondary:hover { background: #e3ecff; }
 
+/* Botão compacto, para ações dentro de listas (editar, apagar, pagar). */
+.btn-tertiary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  background: var(--brand-soft);
+  color: var(--brand-800);
+  border: 1px solid #c8d8ff;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background .2s ease, border-color .2s ease, color .2s ease;
+}
+
+.btn-tertiary:hover {
+  background: #d7e5ff;
+  border-color: var(--brand-600);
+  text-decoration: none;
+}
+
+.btn-danger {
+  background: var(--error-soft);
+  color: #b42318;
+  border-color: #fbc9c4;
+}
+
+.btn-danger:hover { background: #fdd5d1; border-color: var(--error); color: #8c1d18; }
+
 .flash-stack { display: flex; flex-direction: column; gap: 14px; }
 
 .flash {
@@ -321,6 +359,34 @@ a { color: inherit; text-decoration: none; }
 
 .pill { padding: 8px 16px; border-radius: 999px; background: #eef2ff; color: var(--brand-800); font-weight: 600; }
 
+.pill-tag { margin-left: 6px; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; opacity: .65; }
+
+.form-hint { margin: -6px 0 4px; font-size: .85rem; color: #667; }
+
+.mode-options { display: flex; flex-direction: column; gap: 12px; }
+
+.mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: #f9fbff;
+  cursor: pointer;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.mode-option:hover { border-color: var(--brand-600); }
+
+.mode-option:has(input:checked) { border-color: var(--brand-600); box-shadow: 0 0 0 4px rgba(31, 109, 242, 0.18); }
+
+.mode-option input { margin-top: 4px; }
+
+.mode-option span { display: flex; flex-direction: column; gap: 2px; }
+
+.mode-option small { color: #667; font-size: .85rem; }
+
 .expense-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; }
 
 .expense-item {
@@ -345,6 +411,10 @@ a { color: inherit; text-decoration: none; }
 .expense-meta { color: var(--text-muted); font-size: 0.95rem; }
 
 .expense-amount { font-weight: 700; font-size: 1.12rem; color: var(--brand-800); }
+
+.expense-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+.expense-actions { display: flex; align-items: center; gap: 8px; }
 
 .expense-split { font-size: 0.92rem; color: var(--text-muted); }
 
@@ -414,3 +484,127 @@ select.form-input {
   .panel { padding: 24px; border-radius: 22px; }
   .sidebar-card { border-radius: 22px; }
 }
+
+
+/* ============================================================
+   Resumo consolidado (transferências sugeridas e saldos)
+   ============================================================ */
+
+.summary-info,
+.balance-summary { margin-top: 18px; }
+
+.settlement-list,
+.balance-list { list-style: none; margin: 12px 0 0; padding: 0; }
+
+.settlement-list { display: flex; flex-direction: column; gap: 10px; }
+
+.settlement-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-soft);
+  border-left: 4px solid var(--brand-600);
+  background: var(--surface-alt);
+  font-size: 0.95rem;
+}
+
+.settlement-debtor,
+.settlement-creditor { font-weight: 600; color: var(--text-strong); }
+
+.settlement-amount { font-weight: 700; color: var(--brand-800); }
+
+.balance-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 0.95rem;
+}
+
+.balance-item:last-child { border-bottom: 0; }
+
+.balance-name { min-width: 140px; font-weight: 600; }
+
+.balance-positive { color: #15803d; font-weight: 700; }
+
+.balance-negative { color: #b42318; font-weight: 700; }
+
+.balance-zero { color: var(--text-muted); font-weight: 600; }
+
+/* ============================================================
+   Card "Minhas Dívidas" da sidebar
+   ============================================================ */
+
+.debts-card { margin-top: 20px; }
+
+.debts-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+
+.debts-tab-radio { display: none; }
+
+.debts-tab-label {
+  flex: 1;
+  padding: 8px 10px;
+  text-align: center;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-800);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease;
+}
+
+.debts-tab-radio:checked + .debts-tab-label {
+  background: linear-gradient(90deg, var(--brand-600) 0%, #1b63e6 100%);
+  color: #fff;
+}
+
+.debts-panel { display: none; }
+
+/* Os inputs ficam dentro de .debts-tabs, então o combinador de irmãos não
+   alcança .debts-panels — a checagem precisa subir até o card. */
+.debts-card:has(#tab-pendentes:checked) .debts-panel--pending,
+.debts-card:has(#tab-quitadas:checked) .debts-panel--paid { display: block; }
+
+.debts-subtitle {
+  margin: 14px 0 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+}
+
+.debts-subtitle:first-child { margin-top: 0; }
+
+.debts-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.debts-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-alt);
+  font-size: 0.9rem;
+}
+
+.debts-item--paid { background: #f2fbf5; border-color: #cdebd8; }
+
+.debts-group { display: block; margin-top: 2px; color: var(--text-muted); font-size: 0.78rem; }
+
+.debts-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+
+.debts-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+
+.debts-amount { font-weight: 700; color: var(--brand-800); white-space: nowrap; }
+
+.debts-amount.positive { color: #15803d; }
+
+.debts-date { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }

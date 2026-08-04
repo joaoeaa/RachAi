@@ -21,8 +21,14 @@
     <div class="panel">
       <div class="panel-header">
         <div>
-          <h1 class="panel-title">Adicionar despesa</h1>
-          <p class="panel-subtitle">Registre uma nova despesa para o grupo.</p>
+          <h1 class="panel-title">{% if expense %}Editar despesa{% else %}Adicionar despesa{% endif %}</h1>
+          <p class="panel-subtitle">
+            {% if expense %}
+              Corrija os dados abaixo. A divisão é recalculada do zero ao salvar.
+            {% else %}
+              Registre uma nova despesa para o grupo.
+            {% endif %}
+          </p>
         </div>
       </div>
       
@@ -36,7 +42,7 @@
                type="text" 
                maxlength="255" 
                placeholder="Ex.: Almoço" 
-               value="{{ submitted_data.description }}" 
+               value="{{ initial.description }}" 
                required>
 
         <label class="form-label" for="amount">Valor (R$)</label>
@@ -46,15 +52,15 @@
                type="text" 
                inputmode="decimal" 
                placeholder="Ex.: 100,00" 
-               value="{{ submitted_data.amount }}"
+               value="{{ initial.amount }}"
                required>
 
         <label class="form-label" for="paid_by">Quem pagou?</label>
         <select class="form-input" id="paid_by" name="paid_by" required>
           <option value="">Selecione</option>
           {% for p in participants %}
-            <option value="{{ p.user.id }}" 
-                    {% if submitted_data.paid_by == p.user.id|stringformat:"s" %}selected{% endif %}>
+            <option value="{{ p.id }}" 
+                    {% if initial.paid_by == p.id|stringformat:"s" %}selected{% endif %}>
               {{ p.display_name }}
             </option>
           {% endfor %}
@@ -65,15 +71,15 @@
         <label class="form-label" for="split_method_select">Como dividir?</label>
         <select class="form-input" id="split_method_select" name="split_method">
           <option value="EQUAL" 
-                  {% if submitted_data.split_method == 'EQUAL' or not submitted_data.split_method %}selected{% endif %}>
+                  {% if initial.split_method == 'EQUAL' or not initial.split_method %}selected{% endif %}>
             Dividir igualmente
           </option>
           <option value="UNEQUAL_VALUE" 
-                  {% if submitted_data.split_method == 'UNEQUAL_VALUE' %}selected{% endif %}>
+                  {% if initial.split_method == 'UNEQUAL_VALUE' %}selected{% endif %}>
             Dividir por valores exatos (R$)
           </option>
           <option value="UNEQUAL_PERCENTAGE" 
-                  {% if submitted_data.split_method == 'UNEQUAL_PERCENTAGE' %}selected{% endif %}>
+                  {% if initial.split_method == 'UNEQUAL_PERCENTAGE' %}selected{% endif %}>
             Dividir por porcentagem (%)
           </option>
         </select>
@@ -88,17 +94,17 @@
           {% for p in participants %}
           <div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center; margin-bottom: 0.75rem;">
             <label class="form-label" 
-                   for="split_user_{{ p.user.id }}" 
+                   for="split_user_{{ p.id }}" 
                    style="margin-bottom: 0;">
               {{ p.display_name }}:
             </label>
             <input type="text" 
-                   name="split_user_{{ p.user.id }}" 
-                   id="split_user_{{ p.user.id }}"
+                   name="split_user_{{ p.id }}" 
+                   id="split_user_{{ p.id }}"
                    class="form-input split-input-value"
                    inputmode="decimal"
                    placeholder="0,00"
-                   value=""> </div>
+                   value="{{ p.split_value }}"> </div>
           {% endfor %}
           
           <hr/>
@@ -114,17 +120,17 @@
           {% for p in participants %}
           <div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center; margin-bottom: 0.75rem;">
             <label class="form-label" 
-                   for="split_perc_{{ p.user.id }}" 
+                   for="split_perc_{{ p.id }}" 
                    style="margin-bottom: 0;">
               {{ p.display_name }}:
             </label>
             <input type="text" 
-                   name="split_perc_{{ p.user.id }}" 
-                   id="split_perc_{{ p.user.id }}"
+                   name="split_perc_{{ p.id }}" 
+                   id="split_perc_{{ p.id }}"
                    class="form-input split-input-perc"
                    inputmode="decimal"
                    placeholder="0.0"
-                   value=""> </div>
+                   value="{{ p.split_perc }}"> </div>
           {% endfor %}
 
           <hr/>

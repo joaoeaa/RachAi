@@ -1,5 +1,6 @@
 
 import os
+import urllib.parse
 from pathlib import Path
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
@@ -12,8 +13,19 @@ if env_path.exists():
     load_dotenv(dotenv_path=env_path)
 
 
+# A Vercel expõe VERCEL=1 tanto no build quanto em execução, então lá o modo de
+# produção liga sozinho — sem depender de alguém lembrar de setar TARGET_ENV.
+ON_VERCEL = bool(os.getenv('VERCEL'))
+
 TARGET_ENV = os.getenv('TARGET_ENV', 'development')
-IS_PRODUCTION = TARGET_ENV.lower().startswith('prod')
+IS_PRODUCTION = TARGET_ENV.lower().startswith('prod') or ON_VERCEL
+
+
+def _vercel_hosts():
+    """Domínios que a própria Vercel publica para este deploy (sem o https://)."""
+    variaveis = ('VERCEL_PROJECT_PRODUCTION_URL', 'VERCEL_URL', 'VERCEL_BRANCH_URL')
+    encontrados = [os.getenv(nome) for nome in variaveis]
+    return list(dict.fromkeys(h for h in encontrados if h))
 
 
 if not IS_PRODUCTION:
@@ -30,11 +42,16 @@ else:
 
     DEBUG = os.getenv('DEBUG', '0').lower() in ['true', 't', '1']
     
-    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split()
+    # Na Vercel o domínio é gerado no deploy, então ele entra automaticamente —
+    # ALLOWED_HOSTS só precisa ser preenchido à mão para domínio próprio.
+    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split() + _vercel_hosts()
     if not ALLOWED_HOSTS:
          raise ImproperlyConfigured("ALLOWED_HOSTS não foi definido no ambiente de produção!")
 
-    CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split()
+    CSRF_TRUSTED_ORIGINS = (
+        os.getenv('CSRF_TRUSTED_ORIGINS', '').split()
+        + [f'https://{host}' for host in _vercel_hosts()]
+    )
     if not CSRF_TRUSTED_ORIGINS:
         raise ImproperlyConfigured("CSRF_TRUSTED_ORIGINS não foi definido no ambiente de produção!")
 
@@ -89,7 +106,24 @@ TEMPLATES = [
 ]
 
 
-if IS_PRODUCTION:
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if DATABASE_URL:
+    # Formato usado por Vercel/Neon/Supabase: postgres://user:senha@host:porta/banco
+    url = urllib.parse.urlparse(DATABASE_URL)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': urllib.parse.unquote(url.path).lstrip('/'),
+            'HOST': url.hostname,
+            'PORT': url.port or '',
+            'USER': urllib.parse.unquote(url.username or ''),
+            'PASSWORD': urllib.parse.unquote(url.password or ''),
+            'OPTIONS': {'sslmode': os.getenv('DB_SSLMODE', 'require')},
+        }
+    }
+elif IS_PRODUCTION:
+    # Caminho usado pelo deploy no Azure, com as variáveis separadas.
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',

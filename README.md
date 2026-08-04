@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/rachai.png" alt="RachAi Logo">
+  <img src="assets/rachai-full.png" alt="RachAi Logo" width="320">
 </p>
 
 # Projeto RachAi

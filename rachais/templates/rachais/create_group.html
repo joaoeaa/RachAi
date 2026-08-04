@@ -31,13 +31,33 @@
       <div class="panel-header">
         <div>
           <h1 class="panel-title">Criar novo grupo</h1>
-          <p class="panel-subtitle">Defina um nome e convide seus participantes.</p>
+          <p class="panel-subtitle">Defina um nome, o tipo do grupo e convide seus participantes.</p>
         </div>
       </div>
       <form method="post" class="form-stack">
         {% csrf_token %}
         <label class="form-label" for="name">Nome do grupo</label>
         <input class="form-input" id="name" name="name" type="text" maxlength="100" placeholder="Ex.: Viagem para a Praia" value="{{ name|default:'' }}" required>
+
+        <span class="form-label">Tipo do grupo</span>
+        <p class="form-hint">O tipo não pode ser alterado depois que o grupo é criado.</p>
+        <div class="mode-options">
+          <label class="mode-option">
+            <input type="radio" name="mode" value="SHARED" {% if mode != 'MANAGED' %}checked{% endif %}>
+            <span>
+              <strong>Colaborativo</strong>
+              <small>Cada participante entra com a própria conta e registra os gastos dele.</small>
+            </span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="mode" value="MANAGED" {% if mode == 'MANAGED' %}checked{% endif %}>
+            <span>
+              <strong>Gerenciado por mim</strong>
+              <small>Você cadastra os nomes e os gastos de todo mundo. Ninguém mais precisa ter conta no RachAí.</small>
+            </span>
+          </label>
+        </div>
+
         <div class="form-actions">
           <a class="btn-secondary" href="{% url 'rachais:group_list' %}">Cancelar</a>
           <button class="btn-primary" type="submit">Criar</button>

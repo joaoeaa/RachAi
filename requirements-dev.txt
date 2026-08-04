@@ -1,0 +1,6 @@
+# Dependências só de desenvolvimento e testes.
+# Instale com: pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Testes E2E (o pip resolve trio, urllib3, certifi e companhia).
+selenium==4.35.0

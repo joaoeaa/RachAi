@@ -29,21 +29,22 @@
 
       <div class="debts-panels">
         <div class="debts-panel debts-panel--pending">
-          {% if my_debts.pending_to_pay or my_debts.pending_to_receive %}
+          {% if my_debts.pending_to_pay or my_debts.pending_to_receive or my_debts.managed_pending %}
             {% if my_debts.pending_to_pay %}
               <p class="debts-subtitle">Você deve:</p>
               <ul class="debts-list">
                 {% for debt in my_debts.pending_to_pay %}
                   <li class="debts-item">
                     <div>
-                      <strong>{{ debt.counterparty.get_full_name|default:debt.counterparty.username }}</strong>
+                      <strong>{{ debt.counterparty.display_name }}</strong>
                       <small class="debts-group">{{ debt.group.name }}</small>
                     </div>
                     <div class="debts-actions">
                       <span class="debts-amount">R$ {{ debt.amount|localize }}</span>
-                      <form method="post" action="{% url 'rachais:pay_debt' %}" onsubmit="return confirm('Confirmar pagamento de R$ {{ debt.amount|localize }} para {{ debt.counterparty.get_full_name|default:debt.counterparty.username }}?');">
+                      <form method="post" action="{% url 'rachais:pay_debt' %}" onsubmit="return confirm('Confirmar pagamento de R$ {{ debt.amount|localize }} para {{ debt.counterparty.display_name }}?');">
                         {% csrf_token %}
                         <input type="hidden" name="group_id" value="{{ debt.group.id }}">
+                        <input type="hidden" name="payer_id" value="{{ debt.payer.id }}">
                         <input type="hidden" name="receiver_id" value="{{ debt.counterparty.id }}">
                         <input type="hidden" name="amount" value="{{ debt.amount|floatformat:2 }}">
                         <button type="submit" class="btn-tertiary">Pagar</button>
@@ -60,10 +61,35 @@
                 {% for debt in my_debts.pending_to_receive %}
                   <li class="debts-item">
                     <div>
-                      <strong>{{ debt.counterparty.get_full_name|default:debt.counterparty.username }}</strong>
+                      <strong>{{ debt.counterparty.display_name }}</strong>
                       <small class="debts-group">{{ debt.group.name }}</small>
                     </div>
                     <span class="debts-amount positive">R$ {{ debt.amount|localize }}</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+
+            {% if my_debts.managed_pending %}
+              <p class="debts-subtitle">Acertos entre participantes:</p>
+              <ul class="debts-list">
+                {% for debt in my_debts.managed_pending %}
+                  <li class="debts-item">
+                    <div>
+                      <strong>{{ debt.payer.display_name }} → {{ debt.counterparty.display_name }}</strong>
+                      <small class="debts-group">{{ debt.group.name }}</small>
+                    </div>
+                    <div class="debts-actions">
+                      <span class="debts-amount">R$ {{ debt.amount|localize }}</span>
+                      <form method="post" action="{% url 'rachais:pay_debt' %}" onsubmit="return confirm('Registrar que {{ debt.payer.display_name }} pagou R$ {{ debt.amount|localize }} para {{ debt.counterparty.display_name }}?');">
+                        {% csrf_token %}
+                        <input type="hidden" name="group_id" value="{{ debt.group.id }}">
+                        <input type="hidden" name="payer_id" value="{{ debt.payer.id }}">
+                        <input type="hidden" name="receiver_id" value="{{ debt.counterparty.id }}">
+                        <input type="hidden" name="amount" value="{{ debt.amount|floatformat:2 }}">
+                        <button type="submit" class="btn-tertiary">Quitar</button>
+                      </form>
+                    </div>
                   </li>
                 {% endfor %}
               </ul>
@@ -79,16 +105,24 @@
               {% for payment in my_debts.paid %}
                 <li class="debts-item debts-item--paid">
                   <div>
-                    {% if payment.payer_id == user.id %}
-                      Você pagou <strong>{{ payment.receiver.get_full_name|default:payment.receiver.username }}</strong>
+                    {% if payment.payer.user_id == user.id %}
+                      Você pagou <strong>{{ payment.receiver.display_name }}</strong>
+                    {% elif payment.receiver.user_id == user.id %}
+                      <strong>{{ payment.payer.display_name }}</strong> pagou você
                     {% else %}
-                      <strong>{{ payment.payer.get_full_name|default:payment.payer.username }}</strong> pagou você
+                      <strong>{{ payment.payer.display_name }}</strong> pagou <strong>{{ payment.receiver.display_name }}</strong>
                     {% endif %}
                     <small class="debts-group">{{ payment.group.name }}</small>
                   </div>
                   <div class="debts-meta">
                     <span class="debts-amount">R$ {{ payment.amount|localize }}</span>
                     <span class="debts-date">{{ payment.created_at|date:"d/m/Y H:i" }}</span>
+                    {% if payment.can_undo %}
+                      <form method="post" action="{% url 'rachais:undo_payment' payment.group_id payment.id %}" onsubmit="return confirm('Desfazer o pagamento de R$ {{ payment.amount|localize }} de {{ payment.payer.display_name }} para {{ payment.receiver.display_name }}? A dívida volta a aparecer como pendente.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-tertiary btn-danger">Desfazer</button>
+                      </form>
+                    {% endif %}
                   </div>
                 </li>
               {% endfor %}
@@ -116,7 +150,13 @@
       <div class="panel-header panel-header--between">
         <div>
           <h1 class="panel-title">{{ group.name }}</h1>
-          <p class="panel-subtitle">Adicione participantes e registre as despesas do grupo.</p>
+          <p class="panel-subtitle">
+            {% if group.is_managed %}
+              Grupo gerenciado por você — cadastre os nomes e os gastos de todo mundo.
+            {% else %}
+              Grupo colaborativo — cada participante entra com a própria conta.
+            {% endif %}
+          </p>
         </div>
         <a class="btn-primary" href="{% url 'rachais:add_expense' group.id %}">+ Adicionar despesa</a>
       </div>
@@ -125,18 +165,26 @@
     <div class="panel">
       <div class="panel-header panel-header--between">
         <h2 class="panel-title">Participantes</h2>
-        <form class="inline-form" method="post" action="{% url 'rachais:add_participant' group.id %}">
-          {% csrf_token %}
-          <label class="sr-only" for="identifier">Adicionar participante</label>
-          <input class="inline-input" id="identifier" name="identifier" type="text" placeholder="Username ou e-mail" required>
-          <button class="btn-secondary" type="submit">+ Convidar</button>
-        </form>
+        {% if can_manage %}
+          <form class="inline-form" method="post" action="{% url 'rachais:add_participant' group.id %}">
+            {% csrf_token %}
+            {% if group.is_managed %}
+              <label class="sr-only" for="guest_name">Nome do participante</label>
+              <input class="inline-input" id="guest_name" name="guest_name" type="text" maxlength="100" placeholder="Nome da pessoa" required>
+              <button class="btn-secondary" type="submit">+ Adicionar</button>
+            {% else %}
+              <label class="sr-only" for="identifier">Adicionar participante</label>
+              <input class="inline-input" id="identifier" name="identifier" type="text" placeholder="Username ou e-mail" required>
+              <button class="btn-secondary" type="submit">+ Convidar</button>
+            {% endif %}
+          </form>
+        {% endif %}
       </div>
 
       {% if participants %}
         <ul class="pill-list">
           {% for p in participants %}
-            <li class="pill">{{ p.display_name }}</li>
+            <li class="pill">{{ p.display_name }}{% if p.is_guest %} <small class="pill-tag">sem conta</small>{% endif %}</li>
           {% endfor %}
         </ul>
       {% else %}
@@ -155,11 +203,11 @@
           <ul class="settlement-list">
             {% for s in settlements %}
               <li class="settlement-item">
-                <span class="settlement-debtor">{{ s.from_name }}</span>
+                <span class="settlement-debtor">{{ s.person_from.display_name }}</span>
                 deve
                 <span class="settlement-amount">R$ {{ s.amount|localize }}</span>
                 para
-                <span class="settlement-creditor">{{ s.to_name }}</span>
+                <span class="settlement-creditor">{{ s.person_to.display_name }}</span>
               </li>
             {% endfor %}
           </ul>
@@ -168,7 +216,7 @@
         <div class="balance-summary">
           <p><strong>Saldo individual:</strong></p>
           <ul class="balance-list">
-            {% for participant in participants %}
+            {% for participant in balance_rows %}
               <li class="balance-item">
                 <span class="balance-name">{{ participant.display_name }}:</span>
                 {% if participant.balance > 0 %}
@@ -200,9 +248,20 @@
               <div class="expense-main">
                 <div>
                   <div class="expense-name">{{ e.description }}</div>
-                  <div class="expense-meta">Pago por {{ e.paid_by_name }}</div>
+                  <div class="expense-meta">Pago por {{ e.paid_by.display_name }}</div>
                 </div>
-                <div class="expense-amount">R$ {{ e.amount|localize }}</div>
+                <div class="expense-side">
+                  <div class="expense-amount">R$ {{ e.amount|localize }}</div>
+                  {% if e.can_edit %}
+                    <div class="expense-actions">
+                      <a class="btn-tertiary" href="{% url 'rachais:edit_expense' group.id e.id %}">Editar</a>
+                      <form method="post" action="{% url 'rachais:delete_expense' group.id e.id %}" onsubmit="return confirm('Apagar a despesa &quot;{{ e.description }}&quot;? Essa ação não pode ser desfeita.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-tertiary btn-danger">Apagar</button>
+                      </form>
+                    </div>
+                  {% endif %}
+                </div>
               </div>
               
               <div class="expense-split">
