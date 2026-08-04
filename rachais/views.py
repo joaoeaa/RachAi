@@ -35,34 +35,63 @@ def _can_manage(group, user):
     return group.creator_id == user.id
 
 
+def _balances_for_groups(group_ids):
+    """
+    Saldos de vários grupos de uma vez, indexados por Participant.id.
+
+    Faz três consultas no total, independente de quantos grupos entrarem. A
+    versão por grupo custava três consultas *cada*, o que pesa muito quando o
+    banco está longe da aplicação e cada ida e volta custa latência de rede.
+    """
+    group_ids = list(group_ids)
+    balances = {group_id: defaultdict(Decimal) for group_id in group_ids}
+
+    if not group_ids:
+        return {}
+
+    despesas = Expense.objects.filter(group_id__in=group_ids).values_list(
+        'group_id', 'paid_by_id', 'amount'
+    )
+    for group_id, payer_id, amount in despesas:
+        balances[group_id][payer_id] += amount
+
+    divisoes = ExpenseSplit.objects.filter(
+        expense__group_id__in=group_ids
+    ).values_list('expense__group_id', 'participant_id', 'amount_owed')
+    for group_id, participant_id, amount_owed in divisoes:
+        balances[group_id][participant_id] -= amount_owed
+
+    pagamentos = Payment.objects.filter(group_id__in=group_ids).values_list(
+        'group_id', 'payer_id', 'receiver_id', 'amount'
+    )
+    for group_id, payer_id, receiver_id, amount in pagamentos:
+        balances[group_id][payer_id] += amount
+        balances[group_id][receiver_id] -= amount
+
+    return {group_id: dict(saldos) for group_id, saldos in balances.items()}
+
+
+def _participants_for_groups(group_ids):
+    """Participantes de vários grupos de uma vez, numa consulta só."""
+    group_ids = list(group_ids)
+    por_grupo = {group_id: [] for group_id in group_ids}
+
+    if not group_ids:
+        return {}
+
+    consulta = Participant.objects.filter(
+        group_id__in=group_ids
+    ).select_related('user').order_by('id')
+
+    for participante in consulta:
+        por_grupo[participante.group_id].append(participante)
+
+    return por_grupo
+
+
 def _calculate_balances(group):
     """Saldo de cada participante do grupo, indexado por Participant.id."""
-    expenses = list(group.expenses.select_related("paid_by").all())
-
-    balances = defaultdict(Decimal)
-
-    all_splits = ExpenseSplit.objects.filter(
-        expense__in=expenses
-    ).select_related('participant')
-
-    splits_by_expense = defaultdict(list)
-    for split in all_splits:
-        splits_by_expense[split.expense_id].append(split)
-
-    for expense in expenses:
-        balances[expense.paid_by_id] += expense.amount
-
-        splits_for_this_expense = splits_by_expense.get(expense.id, [])
-
-        for split in splits_for_this_expense:
-            balances[split.participant_id] -= split.amount_owed
-
-    payments = group.payments.select_related("payer", "receiver").all()
-    for payment in payments:
-        balances[payment.payer_id] += payment.amount
-        balances[payment.receiver_id] -= payment.amount
-
-    return dict(balances)
+    return _balances_for_groups([group.id])[group.id]
 
 def _calculate_settlements(balances, participants_qs):
     participant_map = {p.id: p for p in participants_qs}
@@ -112,10 +141,21 @@ def _my_debts_snapshot(user):
     paid = []
 
     sidebar_groups = list(_sidebar_groups_qs(user))
+    group_ids = [group.id for group in sidebar_groups]
+
+    # Tudo em lote: o custo não cresce mais com a quantidade de grupos.
+    balances_by_group = _balances_for_groups(group_ids)
+    participants_by_group = _participants_for_groups(group_ids)
+
+    payments_by_group = defaultdict(list)
+    for payment in Payment.objects.filter(
+        group_id__in=group_ids
+    ).select_related('payer__user', 'receiver__user'):
+        payments_by_group[payment.group_id].append(payment)
 
     for group in sidebar_groups:
-        participants = list(group.participants.select_related("user"))
-        balances = _calculate_balances(group)
+        participants = participants_by_group.get(group.id, [])
+        balances = balances_by_group.get(group.id, {})
         settlements = _calculate_settlements(balances, participants)
         is_manager = _can_manage(group, user)
 
@@ -141,17 +181,12 @@ def _my_debts_snapshot(user):
                     "amount": settlement.amount,
                 })
 
-        my_participant = _my_participant(group, user)
-        if is_manager:
-            paid_qs = group.payments.select_related("payer__user", "receiver__user")
-        elif my_participant:
-            paid_qs = group.payments.filter(
-                Q(payer=my_participant) | Q(receiver=my_participant)
-            ).select_related("payer__user", "receiver__user")
-        else:
-            paid_qs = group.payments.none()
+        meus_ids = {p.id for p in participants if p.user_id == user.id}
 
-        for payment in paid_qs:
+        for payment in payments_by_group.get(group.id, []):
+            envolve_voce = payment.payer_id in meus_ids or payment.receiver_id in meus_ids
+            if not (is_manager or envolve_voce):
+                continue
             setattr(payment, "can_undo", _can_undo_payment(group, payment, user))
             paid.append(payment)
 
@@ -160,6 +195,8 @@ def _my_debts_snapshot(user):
         "pending_to_receive": pending_to_receive,
         "managed_pending": managed_pending,
         "paid": sorted(paid, key=lambda p: p.created_at, reverse=True),
+        "balances_by_group": balances_by_group,
+        "participants_by_group": participants_by_group,
     }
 
 
@@ -175,15 +212,18 @@ def group_detail(request, group_id):
     group = get_object_or_404(groups, pk=group_id)
 
     expenses = list(group.expenses.select_related("paid_by__user").all())
-    participants = list(group.participants.select_related("user").all())
 
     total = sum((e.amount for e in expenses), Decimal("0"))
 
-    balances = _calculate_balances(group)
+    # O snapshot da sidebar já calcula saldos e participantes de todos os grupos
+    # em lote — reaproveitamos os deste grupo em vez de consultar de novo.
+    my_debts = _my_debts_snapshot(request.user)
+    participants = my_debts["participants_by_group"].get(group.id) or list(
+        group.participants.select_related("user")
+    )
+    balances = my_debts["balances_by_group"].get(group.id, {})
 
     settlements = _calculate_settlements(balances, participants)
-
-    my_debts = _my_debts_snapshot(request.user)
 
     for participant in participants:
         balance = balances.get(participant.id, Decimal("0"))

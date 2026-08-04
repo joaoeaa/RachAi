@@ -151,6 +151,13 @@ if DATABASE_URL:
             'USER': urllib.parse.unquote(url.username or ''),
             'PASSWORD': urllib.parse.unquote(url.password or ''),
             'OPTIONS': {'sslmode': os.getenv('DB_SSLMODE', 'require')},
+            # Reaproveita a conexão entre requisições na mesma instância. Abrir
+            # uma conexão nova (com handshake TLS) a cada requisição custa caro.
+            'CONN_MAX_AGE': int(os.getenv('DB_CONN_MAX_AGE', '600')),
+            'CONN_HEALTH_CHECKS': True,
+            # O endpoint com "-pooler" do Neon é PgBouncer em modo transação,
+            # que não suporta cursores do lado do servidor.
+            'DISABLE_SERVER_SIDE_CURSORS': True,
         }
     }
 elif IS_PRODUCTION:
