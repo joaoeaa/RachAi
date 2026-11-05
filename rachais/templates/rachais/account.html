@@ -48,6 +48,20 @@
   <button class="btn btn-primary btn-lg" type="submit">Salvar</button>
 </form>
 
+{# Fica escondido sem JavaScript, já que a escolha é salva no navegador. #}
+<fieldset class="card card-pad" data-theme-picker hidden>
+  <legend class="sr-only">Aparência</legend>
+  <div>
+    <h2 class="sec-h" aria-hidden="true">Aparência</h2>
+    <p class="hint" style="margin-top: 4px">No automático, o RachAi segue o modo claro ou escuro do seu aparelho. A escolha vale só para este navegador.</p>
+  </div>
+  <div class="seg">
+    <label class="seg-opt"><input type="radio" name="theme-choice" value="auto">{% icon "monitor" 18 %}Automático</label>
+    <label class="seg-opt"><input type="radio" name="theme-choice" value="light">{% icon "sun" 18 %}Claro</label>
+    <label class="seg-opt"><input type="radio" name="theme-choice" value="dark">{% icon "moon" 18 %}Escuro</label>
+  </div>
+</fieldset>
+
 {% if profile.is_guest %}
   {% if access_url %}
   <section class="card card-pad" aria-labelledby="access-title">

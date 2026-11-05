@@ -147,6 +147,26 @@
     setTimeout(function () { dismissToast(toast); }, 5000);
   });
 
+  // ---------- aparência (Minha conta) ----------
+  var picker = document.querySelector("[data-theme-picker]");
+  if (picker) {
+    var current = "auto";
+    try { current = localStorage.getItem("rachai-theme") || "auto"; } catch (e) { /* sem storage: fica no automático */ }
+    picker.hidden = false;
+    picker.querySelectorAll('input[name="theme-choice"]').forEach(function (radio) {
+      radio.checked = radio.value === current;
+      radio.addEventListener("change", function () {
+        var value = radio.value;
+        try {
+          if (value === "auto") localStorage.removeItem("rachai-theme");
+          else localStorage.setItem("rachai-theme", value);
+        } catch (e) { /* ignora: vale só até recarregar */ }
+        if (value === "auto") document.documentElement.removeAttribute("data-theme");
+        else document.documentElement.setAttribute("data-theme", value);
+      });
+    });
+  }
+
   // ---------- formulário de despesa: contas ao vivo ----------
   var form = document.getElementById("expense-form");
   if (form) setupExpenseForm(form);

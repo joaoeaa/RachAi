@@ -41,8 +41,9 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Tema escuro: segue o aparelho, a menos que a pessoa tenha escolhido
+   Claro ou Escuro em Minha conta (data-theme no <html>, ver base.html). */
+:root[data-theme="dark"] {
     --bg: #0B1220;
     --surface: #131C2E;
     --surface-2: #1A253A;
@@ -69,6 +70,35 @@
     --glass-line: rgba(255,255,255,.08);
     --page-glow: radial-gradient(900px 520px at 110% -8%, rgba(10,122,255,.22), rgba(10,122,255,0) 62%);
     color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+      --bg: #0B1220;
+      --surface: #131C2E;
+      --surface-2: #1A253A;
+      --line: #24314A;
+      --line-strong: #36465F;
+      --ink: #EEF2F8;
+      --ink-2: #C5CEDC;
+      --muted: #9AA6BA;
+      --primary-hover: #0B74F5;
+      --primary-soft: #132A4D;
+      --link: #6AAEFF;
+      --pos: #47D9A2;
+      --pos-soft: #0E2E25;
+      --pos-icon: #47D9A2;
+      --neg: #FF9C80;
+      --neg-soft: #3A1E17;
+      --neg-icon: #FF8A6B;
+      --warn: #FFD27A;
+      --warn-soft: #3A2E0F;
+      --shadow-1: 0 1px 1px rgba(0,0,0,.3), 0 8px 16px -8px rgba(0,0,0,.5);
+      --shadow-2: 0 1px 1px rgba(0,0,0,.3), 0 18px 36px -14px rgba(0,0,0,.6), 0 40px 80px -40px rgba(10,122,255,.3);
+      --shadow-3: 0 2px 4px rgba(0,0,0,.4), 0 32px 72px -16px rgba(0,0,0,.75);
+      --glass: rgba(19,28,46,.78);
+      --glass-line: rgba(255,255,255,.08);
+      --page-glow: radial-gradient(900px 520px at 110% -8%, rgba(10,122,255,.22), rgba(10,122,255,0) 62%);
+      color-scheme: dark;
   }
 }
 
@@ -651,10 +681,10 @@ legend { padding: 0; margin-bottom: 8px; }
 .half.l .cut { left: auto; right: calc(var(--s) * -.046); }
 .half.r .cut { left: calc(var(--s) * -.046); right: auto; }
 .coin-shadow { position: absolute; left: 18%; right: 18%; bottom: -12%; height: 12%; border-radius: 50%; background: radial-gradient(closest-side, rgba(0,24,70,.5), rgba(0,24,70,0)); }
-.auth-stage .coin { animation: coin-sway 8s ease-in-out infinite; }
-.auth-stage .half.l { animation: split-l 5.2s cubic-bezier(.65,0,.25,1) infinite; }
-.auth-stage .half.r { animation: split-r 5.2s cubic-bezier(.65,0,.25,1) infinite; }
-.auth-stage .coin-shadow { animation: shadow-pulse 8s ease-in-out infinite; }
+.auth-hero .coin { animation: coin-sway 8s ease-in-out infinite; }
+.auth-hero .half.l { animation: split-l 5.2s cubic-bezier(.65,0,.25,1) infinite; }
+.auth-hero .half.r { animation: split-r 5.2s cubic-bezier(.65,0,.25,1) infinite; }
+.auth-hero .coin-shadow { animation: shadow-pulse 8s ease-in-out infinite; }
 .twinkle { position: absolute; width: 16px; height: 16px; fill: #fff; opacity: .85; animation: twinkle 2.8s ease-in-out infinite; }
 .twinkle:nth-of-type(2) { animation-delay: .9s; }
 .twinkle:nth-of-type(3) { animation-delay: 1.7s; }

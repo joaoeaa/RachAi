@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0060DB">
+  {# Aplica o tema escolhido em Minha conta antes de desenhar a página (sem piscar). Sem escolha: segue o aparelho. #}
+  <script>try{var t=localStorage.getItem("rachai-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
   <title>{% block title %}RachAi{% endblock %}</title>
   <link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml">
   <link rel="icon" href="{% static 'icon.ico' %}" sizes="48x48">
