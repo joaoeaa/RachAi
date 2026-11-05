@@ -608,3 +608,108 @@ select.form-input {
 .debts-amount.positive { color: #15803d; }
 
 .debts-date { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
+
+
+/* ============================================================
+   Link de convite (grupos colaborativos)
+   ============================================================ */
+
+.invite-box {
+  margin-top: 20px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px dashed #c8d8ff;
+  background: var(--surface-alt);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.invite-head { display: flex; flex-direction: column; gap: 4px; }
+.invite-head small { color: var(--text-muted); font-size: .88rem; }
+
+.invite-row { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
+.invite-row .btn-secondary { text-decoration: none; }
+.invite-input { min-width: 0; font-size: .9rem; color: var(--brand-800); }
+
+.join-meta { text-align: center; color: var(--text-muted); font-size: .9rem; margin: 0 0 18px; }
+.join-button { text-decoration: none; margin-top: 8px; }
+
+@media (max-width: 640px) {
+  .invite-row .btn-secondary { flex: 1 1 auto; }
+}
+
+/* ============================================================
+   Nomes clicáveis e card de Pix
+   ============================================================ */
+
+.person-link {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.person-link:hover { color: var(--brand-600); }
+.person-link:focus-visible { outline: 2px solid var(--brand-600); outline-offset: 2px; border-radius: 4px; }
+
+.person-dialog {
+  width: min(420px, calc(100vw - 32px));
+  border: 0;
+  border-radius: 22px;
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+  color: var(--text-strong);
+}
+
+.person-dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
+.person-dialog-name { margin: 0 0 14px; font-size: 1.25rem; }
+.person-dialog-label { margin: 0 0 8px; font-weight: 600; color: var(--text-muted); font-size: .9rem; }
+.person-dialog-actions { margin: 18px 0 0; display: flex; justify-content: flex-end; }
+.person-dialog [hidden] { display: none; }
+
+/* ============================================================
+   Convidados (entraram só com um nome) e Minha conta
+   ============================================================ */
+
+.guest-banner {
+  padding: 10px 18px;
+  text-align: center;
+  font-size: .92rem;
+  background: var(--warning-soft);
+  color: #92400e;
+}
+
+.guest-banner a { color: inherit; font-weight: 700; }
+
+.user-chip { text-decoration: none; }
+
+.join-hint { margin: 4px 0 0; text-align: center; font-size: .85rem; color: var(--text-muted); }
+
+.join-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0;
+  color: var(--text-muted);
+  font-size: .85rem;
+}
+
+.join-divider::before,
+.join-divider::after { content: ""; flex: 1; height: 1px; background: var(--border-soft); }
+
+.join-account { display: flex; gap: 10px; flex-wrap: wrap; }
+.join-account .btn-secondary { flex: 1 1 140px; text-decoration: none; }
+
+.auth-optional { font-weight: 400; color: var(--text-muted); }
+.auth-hint { margin: 6px 0 0; font-size: .82rem; color: var(--text-muted); line-height: 1.45; }
+
+.account-section { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border-soft); }
+.account-section-title { margin: 0 0 4px; font-size: 1.05rem; }
+.account-section .invite-row { margin-top: 12px; }

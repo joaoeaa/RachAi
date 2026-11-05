@@ -1,0 +1,88 @@
+{% extends "rachais/base.html" %}
+{% load static %}
+
+{% block title %}Minha conta · RachAi{% endblock %}
+{% block body_class %}auth-body{% endblock %}
+
+{% block content %}
+<div class="auth-shell">
+  <div class="auth-card account-card">
+    <h1 class="auth-title">Minha conta</h1>
+    <p class="auth-subtitle">
+      {% if profile.is_guest %}
+        Você entrou como convidado(a), só com um nome.
+      {% else %}
+        {{ user.email }}
+      {% endif %}
+    </p>
+
+    {% if messages %}
+      <div class="auth-messages">
+        {% for m in messages %}
+          <div class="auth-message {{ m.tags }}">{{ m }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" class="auth-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="profile">
+
+      <div class="field">
+        <label class="auth-label" for="first_name">Nome</label>
+        <input class="auth-input" id="first_name" name="first_name" type="text" maxlength="60" value="{{ user.first_name }}" required>
+      </div>
+
+      <div class="field">
+        <label class="auth-label" for="pix_key">Chave Pix <small class="auth-optional">(opcional)</small></label>
+        <input class="auth-input" id="pix_key" name="pix_key" type="text" maxlength="77" value="{{ profile.pix_key }}" placeholder="Celular, e-mail ou chave aleatória" autocomplete="off">
+        <p class="auth-hint">Quem participa dos seus grupos vê essa chave ao clicar no seu nome, para te pagar. Prefira chave aleatória, e-mail ou celular a usar o CPF.</p>
+      </div>
+
+      <button class="auth-button primary" type="submit">Salvar</button>
+    </form>
+
+    {% if profile.is_guest %}
+      {% if access_url %}
+        <div class="account-section">
+          <h2 class="account-section-title">Seu link pessoal de acesso</h2>
+          <p class="auth-hint">Você não tem senha: é este link que te leva de volta aos seus grupos em outro celular ou navegador. Guarde num lugar seguro e não compartilhe.</p>
+          <div class="invite-row">
+            <label class="sr-only" for="access_link">Link pessoal de acesso</label>
+            <input class="inline-input invite-input" id="access_link" type="text" value="{{ access_url }}" readonly onfocus="this.select()">
+            <button class="btn-secondary" type="button" data-copy-target="access_link">Copiar link</button>
+          </div>
+        </div>
+      {% endif %}
+
+      <form method="post" class="auth-form account-section">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="finish">
+        <h2 class="account-section-title">Completar cadastro</h2>
+        <p class="auth-hint">Com e-mail e senha você entra de qualquer lugar. Seus grupos e despesas continuam todos aqui.</p>
+
+        <div class="field">
+          <label class="auth-label" for="email">Email</label>
+          <input class="auth-input" id="email" name="email" type="email" placeholder="exemplo@email.com" required>
+        </div>
+        <div class="field">
+          <label class="auth-label" for="password">Senha</label>
+          <input class="auth-input" id="password" name="password" type="password" placeholder="********" minlength="8" required>
+        </div>
+        <div class="field">
+          <label class="auth-label" for="confirm_password">Confirmar senha</label>
+          <input class="auth-input" id="confirm_password" name="confirm_password" type="password" placeholder="********" minlength="8" required>
+        </div>
+
+        <button class="auth-button primary" type="submit">Completar cadastro</button>
+      </form>
+    {% endif %}
+
+    <div class="auth-switch">
+      <a class="auth-switch-link" href="{% url 'rachais:group_list' %}">Voltar para meus grupos</a>
+    </div>
+  </div>
+</div>
+
+{% include "rachais/_copy_script.html" %}
+{% endblock %}

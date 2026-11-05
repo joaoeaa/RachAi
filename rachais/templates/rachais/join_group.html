@@ -1,0 +1,68 @@
+{% extends "rachais/base.html" %}
+{% load static %}
+
+{% block title %}Convite · RachAi{% endblock %}
+{% block body_class %}auth-body{% endblock %}
+
+{% block content %}
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <img class="auth-logo" src="{% static 'rachai.png' %}" alt="Logotipo RachAi">
+      <span class="auth-brand-name">RachAi</span>
+    </div>
+
+    {% if invalid %}
+      <h1 class="auth-title">Convite inválido</h1>
+      <p class="auth-subtitle">Este link não existe mais ou foi trocado pelo criador do grupo. Peça um link novo para quem te convidou.</p>
+      <a class="auth-button primary join-button" href="{% url 'rachais:group_list' %}">Ir para o RachAi</a>
+    {% else %}
+      <h1 class="auth-title">Você foi convidado(a)!</h1>
+      <p class="auth-subtitle">
+        <strong>{{ creator_name }}</strong> te chamou para rachar as contas do grupo
+        <strong>{{ group.name }}</strong>.
+      </p>
+      <p class="join-meta">
+        {{ participant_count }} participante{{ participant_count|pluralize }} no grupo
+      </p>
+
+      {% if messages %}
+        <div class="auth-messages">
+          {% for m in messages %}
+            <div class="auth-message {{ m.tags }}">{{ m }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if user.is_authenticated %}
+        <form method="post" class="auth-form">
+          {% csrf_token %}
+          <button class="auth-button primary" type="submit">Entrar no grupo como {{ user.get_short_name|default:user.username }}</button>
+          <div class="auth-switch">
+            <a class="auth-switch-link" href="{% url 'rachais:group_list' %}">Agora não</a>
+          </div>
+        </form>
+      {% else %}
+        <form method="post" class="auth-form">
+          {% csrf_token %}
+          <div class="field">
+            <label class="auth-label" for="guest_name">Entrar só com um nome</label>
+            <input class="auth-input" id="guest_name" name="guest_name" type="text"
+                   maxlength="{{ guest_name_max }}" placeholder="Como o grupo te chama?"
+                   value="{{ guest_name }}" autocomplete="nickname" required>
+          </div>
+          <button class="auth-button primary" type="submit">Entrar no grupo</button>
+          <p class="join-hint">Sem e-mail nem senha. Dá para criar sua conta depois, sem perder nada.</p>
+        </form>
+
+        <div class="join-divider"><span>ou</span></div>
+
+        <div class="join-account">
+          <a class="btn-secondary" href="{% url 'accounts:signup' %}?next={{ request.path|urlencode }}">Criar conta</a>
+          <a class="btn-secondary" href="{% url 'accounts:login' %}?next={{ request.path|urlencode }}">Já tenho conta</a>
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

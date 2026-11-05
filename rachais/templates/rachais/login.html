@@ -5,7 +5,7 @@
 {% block body_class %}auth-body auth-body--login{% endblock %}
 
 {% block topbar_actions %}
-  <a class="top-link top-link--ghost" href="{% url 'accounts:signup' %}">Cadastrar</a>
+  <a class="top-link top-link--ghost" href="{% url 'accounts:signup' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">Cadastrar</a>
 {% endblock %}
 
 {% block content %}
@@ -17,7 +17,11 @@
     </div>
 
     <h1 class="auth-title">Entrar na sua conta</h1>
-    <p class="auth-subtitle">Acesse seus grupos e despesas</p>
+    {% if invite_pending %}
+      <p class="auth-subtitle">Você recebeu um convite para um grupo. Entre ou crie sua conta para participar.</p>
+    {% else %}
+      <p class="auth-subtitle">Acesse seus grupos e despesas</p>
+    {% endif %}
 
     {% if messages %}
       <div class="auth-messages">
@@ -48,7 +52,7 @@
 
       <div class="auth-switch">
         <span>Não tem conta?</span>
-        <a class="auth-switch-link" href="{% url 'accounts:signup' %}">Cadastrar</a>
+        <a class="auth-switch-link" href="{% url 'accounts:signup' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">Cadastrar</a>
       </div>
     </form>
   </div>

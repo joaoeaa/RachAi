@@ -1,4 +1,7 @@
+import secrets
+
 from django.contrib.auth.models import User
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.db.models import Q
 from django.db.models.functions import Lower  # <-- novo
@@ -40,6 +43,15 @@ class Group(models.Model):
         default=MODE_SHARED,
         verbose_name="Tipo do grupo",
     )
+    # Código do link de convite (grupos colaborativos). Gerado sob demanda; trocar o
+    # código invalida o link antigo.
+    invite_token = models.CharField(
+        max_length=32,
+        unique=True,
+        null=True,
+        blank=True,
+        editable=False,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -55,6 +67,18 @@ class Group(models.Model):
     def is_managed(self):
         """True quando o grupo é tocado por uma pessoa só, com participantes avulsos."""
         return self.mode == self.MODE_MANAGED
+
+    def ensure_invite_token(self):
+        """Devolve o código do convite, criando um na primeira vez."""
+        if not self.invite_token:
+            self.regenerate_invite_token()
+        return self.invite_token
+
+    def regenerate_invite_token(self):
+        """Troca o código do convite; quem tiver o link antigo não entra mais."""
+        self.invite_token = secrets.token_urlsafe(12)
+        self.save(update_fields=["invite_token"])
+        return self.invite_token
 
     def __str__(self):
         return self.name
@@ -108,6 +132,16 @@ class Participant(models.Model):
         if self.user_id:
             return user_display_name(self.user)
         return (self.guest_name or "").strip() or "Participante"
+
+    @property
+    def pix_key(self):
+        """Chave Pix de quem tem conta; participantes avulsos não têm."""
+        if not self.user_id:
+            return ""
+        try:
+            return self.user.profile.pix_key
+        except ObjectDoesNotExist:
+            return ""
 
     def __str__(self):
         return f"{self.display_name} ({self.group.name})"
@@ -169,3 +203,53 @@ class Payment(models.Model):
     def __str__(self):
         return f"{self.payer} pagou R$ {self.amount} para {self.receiver} em {self.group}"
 
+
+PIX_KEY_MAX_LENGTH = 77  # maior chave Pix possível (e-mail)
+
+
+def clean_pix_key(raw):
+    """Normaliza a chave Pix digitada. Devolve ``(chave, erro)``."""
+    key = " ".join((raw or "").split())
+    if len(key) > PIX_KEY_MAX_LENGTH:
+        return None, f"A chave Pix deve ter no máximo {PIX_KEY_MAX_LENGTH} caracteres."
+    return key, None
+
+
+class Profile(models.Model):
+    """
+    Dados extras de quem usa o RachAi.
+
+    Convidados (``is_guest``) entraram num grupo só com um nome: têm conta, mas sem
+    e-mail nem senha. Voltam pelo link pessoal (``access_token``) até completarem
+    o cadastro.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    pix_key = models.CharField(max_length=PIX_KEY_MAX_LENGTH, blank=True, verbose_name="Chave Pix")
+    is_guest = models.BooleanField(default=False, verbose_name="Convidado sem cadastro")
+    access_token = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        editable=False,
+    )
+
+    @classmethod
+    def for_user(cls, user):
+        try:
+            return user.profile
+        except ObjectDoesNotExist:
+            profile, _ = cls.objects.get_or_create(user=user)
+            return profile
+
+    def __str__(self):
+        return f"Perfil de {user_display_name(self.user)}"
+
+
+def create_guest_user(name):
+    """Cria a conta de um convidado que entrou num grupo só com o nome."""
+    user = User(username=f"convidado-{secrets.token_hex(8)}", first_name=name)
+    user.set_unusable_password()
+    user.save()
+    Profile.objects.create(user=user, is_guest=True, access_token=secrets.token_urlsafe(32))
+    return user

@@ -36,7 +36,7 @@
                 {% for debt in my_debts.pending_to_pay %}
                   <li class="debts-item">
                     <div>
-                      <strong>{{ debt.counterparty.display_name }}</strong>
+                      <strong>{% include "rachais/_person.html" with p=debt.counterparty %}</strong>
                       <small class="debts-group">{{ debt.group.name }}</small>
                     </div>
                     <div class="debts-actions">
@@ -61,7 +61,7 @@
                 {% for debt in my_debts.pending_to_receive %}
                   <li class="debts-item">
                     <div>
-                      <strong>{{ debt.counterparty.display_name }}</strong>
+                      <strong>{% include "rachais/_person.html" with p=debt.counterparty %}</strong>
                       <small class="debts-group">{{ debt.group.name }}</small>
                     </div>
                     <span class="debts-amount positive">R$ {{ debt.amount|localize }}</span>
@@ -76,7 +76,7 @@
                 {% for debt in my_debts.managed_pending %}
                   <li class="debts-item">
                     <div>
-                      <strong>{{ debt.payer.display_name }} → {{ debt.counterparty.display_name }}</strong>
+                      <strong>{% include "rachais/_person.html" with p=debt.payer %} → {% include "rachais/_person.html" with p=debt.counterparty %}</strong>
                       <small class="debts-group">{{ debt.group.name }}</small>
                     </div>
                     <div class="debts-actions">
@@ -184,11 +184,30 @@
       {% if participants %}
         <ul class="pill-list">
           {% for p in participants %}
-            <li class="pill">{{ p.display_name }}{% if p.is_guest %} <small class="pill-tag">sem conta</small>{% endif %}</li>
+            <li class="pill">{% include "rachais/_person.html" %}{% if p.pix_key %} <small class="pill-tag">pix</small>{% endif %}{% if p.is_guest %} <small class="pill-tag">sem conta</small>{% endif %}</li>
           {% endfor %}
         </ul>
       {% else %}
         <p class="panel-empty">Nenhum participante ainda.</p>
+      {% endif %}
+
+      {% if invite_url %}
+        <div class="invite-box">
+          <div class="invite-head">
+            <strong>Link de convite</strong>
+            <small>Quem abrir este link entra no grupo, mesmo quem ainda não tem conta no RachAi (cria na hora).</small>
+          </div>
+          <div class="invite-row">
+            <label class="sr-only" for="invite_link">Link de convite</label>
+            <input class="inline-input invite-input" id="invite_link" type="text" value="{{ invite_url }}" readonly onfocus="this.select()">
+            <button class="btn-secondary" type="button" data-copy-target="invite_link">Copiar link</button>
+            <a class="btn-secondary" href="https://wa.me/?text={{ 'Bora rachar as contas do grupo "'|urlencode }}{{ group.name|urlencode }}{{ '" no RachAi? Entra por aqui: '|urlencode }}{{ invite_url|urlencode }}" target="_blank" rel="noopener">WhatsApp</a>
+          </div>
+          <form method="post" action="{% url 'rachais:regenerate_invite' group.id %}" onsubmit="return confirm('Gerar um novo link? Quem tiver o link atual não vai mais conseguir entrar.');">
+            {% csrf_token %}
+            <button class="btn-tertiary" type="submit">Gerar novo link</button>
+          </form>
+        </div>
       {% endif %}
     </div>
 
@@ -203,11 +222,11 @@
           <ul class="settlement-list">
             {% for s in settlements %}
               <li class="settlement-item">
-                <span class="settlement-debtor">{{ s.person_from.display_name }}</span>
+                <span class="settlement-debtor">{% include "rachais/_person.html" with p=s.person_from %}</span>
                 deve
                 <span class="settlement-amount">R$ {{ s.amount|localize }}</span>
                 para
-                <span class="settlement-creditor">{{ s.person_to.display_name }}</span>
+                <span class="settlement-creditor">{% include "rachais/_person.html" with p=s.person_to %}</span>
               </li>
             {% endfor %}
           </ul>
@@ -287,4 +306,7 @@
     </div>
   </section>
 </div>
+
+{% include "rachais/_person_dialog.html" %}
+{% include "rachais/_copy_script.html" %}
 {% endblock %}

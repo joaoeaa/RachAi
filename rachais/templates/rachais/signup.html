@@ -5,7 +5,7 @@
 {% block body_class %}auth-body auth-body--signup{% endblock %}
 
 {% block topbar_actions %}
-  <a class="top-link top-link--ghost" href="{% url 'accounts:login' %}">Entrar</a>
+  <a class="top-link top-link--ghost" href="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">Entrar</a>
 {% endblock %}
 
 {% block content %}
@@ -17,7 +17,11 @@
     </div>
 
     <h1 class="auth-title">Criar conta</h1>
-    <p class="auth-subtitle">Preencha seus dados para começar</p>
+    {% if invite_pending %}
+      <p class="auth-subtitle">Crie sua conta e você já entra no grupo para o qual foi convidado(a).</p>
+    {% else %}
+      <p class="auth-subtitle">Preencha seus dados para começar</p>
+    {% endif %}
 
     {% if messages %}
       <div class="auth-messages">
@@ -29,14 +33,17 @@
 
     <form method="post" class="auth-form">
       {% csrf_token %}
+      {% if request.GET.next %}
+        <input type="hidden" name="next" value="{{ request.GET.next }}">
+      {% endif %}
       <div class="field">
         <label class="auth-label" for="first_name">Nome</label>
-        <input class="auth-input" id="first_name" name="first_name" type="text" placeholder="Ex.: Ana Silva" required>
+        <input class="auth-input" id="first_name" name="first_name" type="text" placeholder="Ex.: Ana Silva" value="{{ form.first_name|default:'' }}" required>
       </div>
 
       <div class="field">
         <label class="auth-label" for="email">Email</label>
-        <input class="auth-input" id="email" name="email" type="email" placeholder="exemplo@email.com" required>
+        <input class="auth-input" id="email" name="email" type="email" placeholder="exemplo@email.com" value="{{ form.email|default:'' }}" required>
       </div>
 
       <div class="field">
@@ -49,13 +56,19 @@
         <input class="auth-input" id="confirm_password" name="confirm_password" type="password" placeholder="********" required>
       </div>
 
+      <div class="field">
+        <label class="auth-label" for="pix_key">Chave Pix <small class="auth-optional">(opcional)</small></label>
+        <input class="auth-input" id="pix_key" name="pix_key" type="text" maxlength="77" placeholder="Celular, e-mail ou chave aleatória" value="{{ form.pix_key|default:'' }}" autocomplete="off">
+        <p class="auth-hint">Aparece para quem está nos seus grupos, para te pagarem. Dá para mudar depois em Minha conta.</p>
+      </div>
+
       <p class="auth-terms">Ao continuar, você aceita os termos do serviço.</p>
 
       <button class="auth-button primary" type="submit">Cadastrar</button>
 
       <div class="auth-switch">
         <span>Já tem conta?</span>
-        <a class="auth-switch-link" href="{% url 'accounts:login' %}">Entrar</a>
+        <a class="auth-switch-link" href="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">Entrar</a>
       </div>
     </form>
   </div>

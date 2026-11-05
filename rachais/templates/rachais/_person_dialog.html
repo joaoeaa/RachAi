@@ -1,0 +1,49 @@
+{# Card aberto ao clicar no nome de alguém (botões .person-link): mostra a chave Pix. #}
+<dialog class="person-dialog" id="person-dialog" aria-labelledby="person-dialog-name">
+  <h2 class="person-dialog-name" id="person-dialog-name"></h2>
+
+  <div class="person-dialog-pix" data-pix-has>
+    <p class="person-dialog-label">Chave Pix</p>
+    <div class="invite-row">
+      <label class="sr-only" for="person-dialog-key">Chave Pix</label>
+      <input class="inline-input invite-input" id="person-dialog-key" type="text" readonly onfocus="this.select()">
+      <button class="btn-secondary" type="button" data-copy-target="person-dialog-key">Copiar</button>
+    </div>
+  </div>
+
+  <p class="panel-empty" data-pix-none>
+    <span data-pix-none-name></span> ainda não cadastrou uma chave Pix.
+  </p>
+
+  <form method="dialog" class="person-dialog-actions">
+    <button class="btn-secondary" type="submit">Fechar</button>
+  </form>
+</dialog>
+
+<script>
+  (function () {
+    var dialog = document.getElementById("person-dialog");
+    if (!dialog || typeof dialog.showModal !== "function") return;
+    var keyInput = document.getElementById("person-dialog-key");
+    var hasPix = dialog.querySelector("[data-pix-has]");
+    var noPix = dialog.querySelector("[data-pix-none]");
+
+    document.addEventListener("click", function (event) {
+      var trigger = event.target.closest(".person-link");
+      if (!trigger) return;
+      var name = trigger.dataset.personName;
+      var pix = trigger.dataset.personPix;
+      document.getElementById("person-dialog-name").textContent = name;
+      dialog.querySelector("[data-pix-none-name]").textContent = name;
+      keyInput.value = pix;
+      hasPix.hidden = !pix;
+      noPix.hidden = !!pix;
+      dialog.showModal();
+    });
+
+    // Clique no fundo escuro fecha o card.
+    dialog.addEventListener("click", function (event) {
+      if (event.target === dialog) dialog.close();
+    });
+  })();
+</script>

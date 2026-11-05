@@ -1,0 +1,27 @@
+{% extends "rachais/base.html" %}
+{% load static %}
+
+{% block title %}Acesso · RachAi{% endblock %}
+{% block body_class %}auth-body{% endblock %}
+
+{% block content %}
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <img class="auth-logo" src="{% static 'rachai.png' %}" alt="Logotipo RachAi">
+      <span class="auth-brand-name">RachAi</span>
+    </div>
+
+    <h1 class="auth-title">Entrar como {{ guest.first_name }}?</h1>
+    <p class="auth-subtitle">Este é o link pessoal de acesso de {{ guest.first_name }}. Continue só se for você.</p>
+
+    <form method="post" class="auth-form">
+      {% csrf_token %}
+      <button class="auth-button primary" type="submit">Sou eu, continuar</button>
+      <div class="auth-switch">
+        <a class="auth-switch-link" href="{% url 'accounts:login' %}">Não sou eu</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

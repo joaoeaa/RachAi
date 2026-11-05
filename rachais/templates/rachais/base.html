@@ -27,8 +27,8 @@
       <nav class="topbar-actions">
         {% block topbar_actions %}
         {% if user.is_authenticated %}
-          <span class="user-chip">{{ user.get_short_name|default:user.username }}</span>
-          <a class="top-link top-link--ghost" href="{% url 'accounts:logout' %}">Sair</a>
+          <a class="user-chip" href="{% url 'accounts:account' %}" title="Minha conta">{{ user.get_short_name|default:user.username }}</a>
+          <a class="top-link top-link--ghost" href="{% url 'accounts:logout' %}"{% if request.session.is_guest %} onclick="return confirm('Você entrou sem cadastro. Se sair, só volta pelo seu link pessoal de acesso (em Minha conta). Sair mesmo?');"{% endif %}>Sair</a>
         {% else %}
           <a class="top-link top-link--ghost" href="{% url 'accounts:login' %}">Entrar</a>
           <a class="top-link top-link--primary" href="{% url 'accounts:signup' %}">Cadastrar</a>
@@ -37,6 +37,12 @@
       </nav>
     </div>
   </header>
+
+  {% if request.session.is_guest %}
+    <div class="guest-banner">
+      Você entrou só com um nome. <a href="{% url 'accounts:account' %}">Complete seu cadastro</a> para não perder o acesso aos seus grupos.
+    </div>
+  {% endif %}
 
   <main class="page-wrapper">
     {% block content %}{% endblock %}

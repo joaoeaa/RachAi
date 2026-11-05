@@ -12,7 +12,7 @@ from selenium.webdriver.common.alert import Alert
 from decimal import Decimal
 from django.test import TestCase
 
-from rachais.models import Group, Participant, Expense, ExpenseSplit, Payment
+from rachais.models import Group, Participant, Expense, ExpenseSplit, Payment, Profile
 from rachais.views import _calculate_balances, _calculate_settlements
 
 User = get_user_model()
@@ -1233,3 +1233,263 @@ class UndoPaymentTests(TestCase):
 
         self.assertIn('R$ 50,00', page)
         self.assertNotIn(self._undo_url(), page)
+
+
+class InviteLinkTests(TestCase):
+    """Convite por link em grupos colaborativos, inclusive para quem ainda não tem conta."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username="dono@ex.com", email="dono@ex.com", password="senha12345", first_name="Dono"
+        )
+        self.group = Group.objects.create(name="Viagem", creator=self.owner, mode=Group.MODE_SHARED)
+        Participant.objects.create(group=self.group, user=self.owner)
+        self.token = self.group.ensure_invite_token()
+        self.join_url = reverse("rachais:join_group", args=[self.token])
+
+    def test_owner_sees_invite_link_on_group_page(self):
+        self.client.force_login(self.owner)
+        resp = self.client.get(reverse("rachais:group_detail", args=[self.group.id]))
+        self.assertContains(resp, self.join_url)
+
+    def test_managed_group_has_no_invite_link(self):
+        managed = Group.objects.create(name="Bar", creator=self.owner, mode=Group.MODE_MANAGED)
+        Participant.objects.create(group=managed, user=self.owner)
+        self.client.force_login(self.owner)
+        resp = self.client.get(reverse("rachais:group_detail", args=[managed.id]))
+        self.assertIsNone(resp.context["invite_url"])
+        managed.refresh_from_db()
+        self.assertIsNone(managed.invite_token)
+        token = managed.ensure_invite_token()
+        self.client.force_login(User.objects.create_user(username="x@ex.com", password="senha12345"))
+        resp = self.client.get(reverse("rachais:join_group", args=[token]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_anonymous_sees_both_options(self):
+        resp = self.client.get(self.join_url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'name="guest_name"')
+        self.assertContains(resp, f"{reverse('accounts:signup')}?next={self.join_url}")
+        self.assertContains(resp, f"{reverse('accounts:login')}?next={self.join_url}")
+
+    def test_new_user_signs_up_from_invite_and_joins(self):
+        resp = self.client.post(
+            f"{reverse('accounts:signup')}?next={self.join_url}",
+            {
+                "first_name": "Nova",
+                "email": "nova@ex.com",
+                "password": "senha12345",
+                "confirm_password": "senha12345",
+                "next": self.join_url,
+            },
+        )
+        self.assertRedirects(resp, self.join_url)
+
+        # GET só mostra o convite; quem entra é o POST.
+        resp = self.client.get(self.join_url)
+        self.assertContains(resp, "Viagem")
+        self.assertFalse(self.group.participants.filter(user__username="nova@ex.com").exists())
+
+        resp = self.client.post(self.join_url)
+        self.assertRedirects(resp, reverse("rachais:group_detail", args=[self.group.id]))
+        self.assertTrue(self.group.participants.filter(user__username="nova@ex.com").exists())
+
+    def test_existing_user_logs_in_from_invite(self):
+        User.objects.create_user(username="amigo@ex.com", email="amigo@ex.com", password="senha12345")
+        resp = self.client.post(
+            f"{reverse('accounts:login')}?next={self.join_url}",
+            {"email": "amigo@ex.com", "password": "senha12345", "next": self.join_url},
+        )
+        self.assertRedirects(resp, self.join_url)
+
+    def test_member_opening_link_goes_to_group(self):
+        self.client.force_login(self.owner)
+        resp = self.client.get(self.join_url)
+        self.assertRedirects(resp, reverse("rachais:group_detail", args=[self.group.id]))
+        self.assertEqual(self.group.participants.filter(user=self.owner).count(), 1)
+
+    def test_regenerate_invalidates_old_link(self):
+        self.client.force_login(self.owner)
+        self.client.post(reverse("rachais:regenerate_invite", args=[self.group.id]))
+        self.group.refresh_from_db()
+        self.assertNotEqual(self.group.invite_token, self.token)
+
+        self.client.force_login(User.objects.create_user(username="y@ex.com", password="senha12345"))
+        resp = self.client.get(self.join_url)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_only_creator_can_regenerate(self):
+        other = User.objects.create_user(username="z@ex.com", password="senha12345")
+        Participant.objects.create(group=self.group, user=other)
+        self.client.force_login(other)
+        self.client.post(reverse("rachais:regenerate_invite", args=[self.group.id]))
+        self.group.refresh_from_db()
+        self.assertEqual(self.group.invite_token, self.token)
+
+    def test_login_ignores_external_next(self):
+        User.objects.create_user(username="w@ex.com", email="w@ex.com", password="senha12345")
+        resp = self.client.post(
+            f"{reverse('accounts:login')}?next=https://evil.example.com/",
+            {"email": "w@ex.com", "password": "senha12345"},
+        )
+        self.assertRedirects(resp, reverse("rachais:home"), fetch_redirect_response=False)
+
+
+class GuestJoinTests(TestCase):
+    """Entrar num grupo colaborativo só com um nome, e completar o cadastro depois."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username="dono@ex.com", email="dono@ex.com", password="senha12345", first_name="Dono"
+        )
+        self.group = Group.objects.create(name="Casa de praia", creator=self.owner, mode=Group.MODE_SHARED)
+        self.owner_part = Participant.objects.create(group=self.group, user=self.owner)
+        self.join_url = reverse("rachais:join_group", args=[self.group.ensure_invite_token()])
+
+    def _join_as_guest(self, name="Carla"):
+        return self.client.post(self.join_url, {"guest_name": name})
+
+    def test_guest_joins_with_name_and_uses_group(self):
+        resp = self._join_as_guest("  Carla   Souza ")
+        self.assertRedirects(resp, reverse("rachais:group_detail", args=[self.group.id]))
+
+        part = self.group.participants.get(user__first_name="Carla Souza")
+        self.assertTrue(part.user.profile.is_guest)
+        self.assertFalse(part.user.has_usable_password())
+        self.assertTrue(self.client.session.get("is_guest"))
+
+        # Participa como qualquer membro: lança despesa dividida com o grupo.
+        resp = self.client.post(
+            reverse("rachais:add_expense", args=[self.group.id]),
+            {"description": "Mercado", "amount": "100,00", "paid_by": part.id, "split_method": "EQUAL"},
+        )
+        self.assertRedirects(resp, reverse("rachais:group_detail", args=[self.group.id]))
+        resp = self.client.get(reverse("rachais:group_detail", args=[self.group.id]))
+        self.assertContains(resp, "Complete seu cadastro")
+
+    def test_guest_name_is_required_and_unique_in_group(self):
+        resp = self._join_as_guest("   ")
+        self.assertEqual(resp.status_code, 200)
+        resp = self._join_as_guest("dono")
+        self.assertContains(resp, "Já tem alguém com esse nome")
+        self.assertEqual(self.group.participants.count(), 1)
+
+    def test_guest_access_link_logs_back_in_only_on_post(self):
+        self._join_as_guest()
+        token = Profile.objects.get(user__first_name="Carla").access_token
+        access_url = reverse("accounts:guest_access", args=[token])
+        self.client.logout()
+
+        resp = self.client.get(access_url)
+        self.assertContains(resp, "Entrar como Carla?")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+        self.client.post(access_url)
+        resp = self.client.get(reverse("rachais:group_detail", args=[self.group.id]))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_guest_completes_signup_and_keeps_groups(self):
+        self._join_as_guest()
+        guest = User.objects.get(first_name="Carla")
+        token = guest.profile.access_token
+
+        resp = self.client.post(reverse("accounts:account"), {
+            "action": "finish",
+            "email": "carla@ex.com",
+            "password": "senha12345",
+            "confirm_password": "senha12345",
+        })
+        self.assertRedirects(resp, reverse("accounts:account"))
+
+        guest.refresh_from_db()
+        self.assertEqual(guest.email, "carla@ex.com")
+        self.assertFalse(guest.profile.is_guest)
+        self.assertIsNone(guest.profile.access_token)
+        self.assertNotIn("is_guest", self.client.session)
+        # Continua logada (a troca de senha não derruba a sessão).
+        self.assertEqual(self.client.get(reverse("rachais:group_detail", args=[self.group.id])).status_code, 200)
+
+        # O link de convidado morre, e o login normal passa a valer.
+        self.client.logout()
+        resp = self.client.get(reverse("accounts:guest_access", args=[token]))
+        self.assertRedirects(resp, reverse("accounts:login"))
+        resp = self.client.post(reverse("accounts:login"), {"email": "carla@ex.com", "password": "senha12345"})
+        self.assertRedirects(resp, reverse("rachais:home"), fetch_redirect_response=False)
+        self.assertTrue(self.group.participants.filter(user=guest).exists())
+
+    def test_guest_cannot_finish_with_taken_email(self):
+        self._join_as_guest()
+        self.client.post(reverse("accounts:account"), {
+            "action": "finish",
+            "email": "dono@ex.com",
+            "password": "senha12345",
+            "confirm_password": "senha12345",
+        })
+        self.assertTrue(User.objects.get(first_name="Carla").profile.is_guest)
+
+    def test_regular_user_cannot_use_finish(self):
+        self.client.force_login(self.owner)
+        self.client.post(reverse("accounts:account"), {
+            "action": "finish",
+            "email": "outro@ex.com",
+            "password": "outrasenha1",
+            "confirm_password": "outrasenha1",
+        })
+        self.owner.refresh_from_db()
+        self.assertEqual(self.owner.email, "dono@ex.com")
+
+
+class PixKeyTests(TestCase):
+    """Chave Pix no cadastro, em Minha conta e no card de cada pessoa do grupo."""
+
+    def test_signup_saves_pix_and_group_shows_it(self):
+        self.client.post(reverse("accounts:signup"), {
+            "first_name": "Ana",
+            "email": "ana@ex.com",
+            "password": "senha12345",
+            "confirm_password": "senha12345",
+            "pix_key": "  ana@pix.com ",
+        })
+        ana = User.objects.get(username="ana@ex.com")
+        self.assertEqual(ana.profile.pix_key, "ana@pix.com")
+
+        group = Group.objects.create(name="Bar", creator=ana, mode=Group.MODE_SHARED)
+        Participant.objects.create(group=group, user=ana)
+        resp = self.client.get(reverse("rachais:group_detail", args=[group.id]))
+        self.assertContains(resp, 'data-person-pix="ana@pix.com"')
+
+    def test_signup_without_pix_still_works(self):
+        resp = self.client.post(reverse("accounts:signup"), {
+            "first_name": "Bia",
+            "email": "bia@ex.com",
+            "password": "senha12345",
+            "confirm_password": "senha12345",
+        })
+        self.assertRedirects(resp, reverse("rachais:home"), fetch_redirect_response=False)
+        self.assertEqual(User.objects.get(username="bia@ex.com").profile.pix_key, "")
+
+    def test_account_updates_pix_for_user_without_profile(self):
+        # Contas criadas antes desta mudança não têm Profile.
+        user = User.objects.create_user(username="old@ex.com", email="old@ex.com", password="senha12345", first_name="Old")
+        self.client.force_login(user)
+        self.client.post(reverse("accounts:account"), {
+            "action": "profile", "first_name": "Velho", "pix_key": "81999990000",
+        })
+        user.refresh_from_db()
+        self.assertEqual(user.first_name, "Velho")
+        self.assertEqual(user.profile.pix_key, "81999990000")
+
+    def test_pix_too_long_is_rejected(self):
+        user = User.objects.create_user(username="x@ex.com", password="senha12345", first_name="X")
+        self.client.force_login(user)
+        resp = self.client.post(reverse("accounts:account"), {
+            "action": "profile", "first_name": "X", "pix_key": "a" * 78,
+        }, follow=True)
+        self.assertContains(resp, "no máximo 77")
+        self.assertEqual(Profile.for_user(user).pix_key, "")
+
+    def test_participant_without_profile_has_empty_pix(self):
+        user = User.objects.create_user(username="y@ex.com", password="senha12345")
+        group = Group.objects.create(name="G", creator=user)
+        self.assertEqual(Participant.objects.create(group=group, user=user).pix_key, "")
+        self.assertEqual(Participant.objects.create(group=group, guest_name="Avulso").pix_key, "")

@@ -3,8 +3,12 @@ import decimal
 from collections import defaultdict
 from types import SimpleNamespace
 from django.db import transaction
-from .models import Group, Participant, Expense, ExpenseSplit, Payment, user_display_name
+from .auth_views import login_guest
+from .models import (
+    Group, Participant, Expense, ExpenseSplit, Payment, create_guest_user, user_display_name,
+)
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -81,7 +85,7 @@ def _participants_for_groups(group_ids):
 
     consulta = Participant.objects.filter(
         group_id__in=group_ids
-    ).select_related('user').order_by('id')
+    ).select_related('user__profile').order_by('id')
 
     for participante in consulta:
         por_grupo[participante.group_id].append(participante)
@@ -225,7 +229,7 @@ def group_detail(request, group_id):
     # em lote — reaproveitamos os deste grupo em vez de consultar de novo.
     my_debts = _my_debts_snapshot(request.user)
     participants = my_debts["participants_by_group"].get(group.id) or list(
-        group.participants.select_related("user")
+        group.participants.select_related("user__profile")
     )
     balances = my_debts["balances_by_group"].get(group.id, {})
 
@@ -269,6 +273,12 @@ def group_detail(request, group_id):
 
         setattr(e, "split_list", split_list)
 
+    invite_url = None
+    if not group.is_managed and _can_manage(group, request.user):
+        invite_url = request.build_absolute_uri(
+            reverse("rachais:join_group", args=[group.ensure_invite_token()])
+        )
+
     return render(
         request,
         "rachais/group_detail.html",
@@ -282,6 +292,7 @@ def group_detail(request, group_id):
             "settlements": settlements,
             "my_debts": my_debts,
             "can_manage": _can_manage(group, request.user),
+            "invite_url": invite_url,
         }
     )
 
@@ -383,6 +394,98 @@ def add_participant(request, group_id):
 
     Participant.objects.create(group=group, user=user)
     messages.success(request, f"{user_display_name(user)} adicionado(a) com sucesso!")
+    return redirect("rachais:group_detail", group_id=group.id)
+
+
+GUEST_NAME_MAX_LENGTH = 60
+
+
+def _guest_name_error(group, name):
+    """Problema com o nome escolhido por quem entra sem conta, ou ``None``."""
+    if not name:
+        return "Escolha um nome para entrar no grupo."
+    if len(name) > GUEST_NAME_MAX_LENGTH:
+        return f"O nome deve ter no máximo {GUEST_NAME_MAX_LENGTH} caracteres."
+    taken = {
+        p.display_name.casefold()
+        for p in group.participants.select_related("user")
+    }
+    if name.casefold() in taken:
+        return "Já tem alguém com esse nome no grupo. Que tal colocar o sobrenome ou um apelido?"
+    return None
+
+
+def join_group(request, token):
+    """
+    Entrada pelo link de convite de um grupo colaborativo.
+
+    Quem está logado só confirma. Quem não está escolhe: entrar só com um nome
+    (vira um convidado, com conta sem e-mail nem senha) ou entrar/criar conta, que
+    passa pelo login/cadastro e volta para cá pelo ``next``. O GET só mostra o
+    convite; entrar no grupo é sempre um POST.
+    """
+    group = (
+        Group.objects
+        .select_related("creator")
+        .filter(invite_token=token, mode=Group.MODE_SHARED)
+        .first()
+    )
+
+    if group is None:
+        return render(request, "rachais/join_group.html", {"invalid": True}, status=404)
+
+    if request.user.is_authenticated and group.participants.filter(user=request.user).exists():
+        messages.info(request, "Você já faz parte deste grupo.")
+        return redirect("rachais:group_detail", group_id=group.id)
+
+    guest_name = ""
+    if request.method == "POST":
+        if request.user.is_authenticated:
+            Participant.objects.get_or_create(group=group, user=request.user)
+            messages.success(request, f"Você entrou no grupo {group.name}!")
+            return redirect("rachais:group_detail", group_id=group.id)
+
+        guest_name = " ".join((request.POST.get("guest_name") or "").split())
+        error = _guest_name_error(group, guest_name)
+        if error:
+            messages.error(request, error)
+        else:
+            with transaction.atomic():
+                user = create_guest_user(guest_name)
+                Participant.objects.create(group=group, user=user)
+            login_guest(request, user)
+            messages.success(
+                request,
+                f"Você entrou no grupo {group.name}! Para não perder o acesso, "
+                "guarde seu link pessoal ou complete o cadastro em Minha conta.",
+            )
+            return redirect("rachais:group_detail", group_id=group.id)
+
+    return render(
+        request,
+        "rachais/join_group.html",
+        {
+            "group": group,
+            "creator_name": user_display_name(group.creator),
+            "participant_count": group.participants.count(),
+            "guest_name": guest_name,
+            "guest_name_max": GUEST_NAME_MAX_LENGTH,
+        },
+    )
+
+
+@login_required
+@require_POST
+def regenerate_invite(request, group_id):
+    """Gera um novo link de convite; o anterior deixa de funcionar."""
+    group = get_object_or_404(Group, pk=group_id)
+
+    if not _can_manage(group, request.user) or group.is_managed:
+        messages.error(request, "Apenas o criador de um grupo colaborativo pode gerenciar o convite.")
+        return redirect("rachais:group_detail", group_id=group.id)
+
+    group.regenerate_invite_token()
+    messages.success(request, "Novo link de convite gerado. O link antigo não funciona mais.")
     return redirect("rachais:group_detail", group_id=group.id)
 
 def _can_edit_expense(group, expense, user):
