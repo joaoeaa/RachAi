@@ -1,0 +1,15 @@
+{% load rachai %}
+{# Modal único de confirmação. Formulários e links com data-confirm="Título" o usam (ver app.js). #}
+<dialog class="dlg" id="confirm-dialog" aria-labelledby="confirm-title">
+  <span class="tile t-primary" data-confirm-icon="primary">{% icon "wallet" 24 %}</span>
+  <span class="tile t-pos" data-confirm-icon="pos" hidden>{% icon "check" 24 %}</span>
+  <span class="tile t-neg" data-confirm-icon="danger" hidden>{% icon "trash" 24 %}</span>
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <h2 class="dlg-title" id="confirm-title" data-confirm-title>Confirmar?</h2>
+    <p class="dlg-body" data-confirm-body></p>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn-secondary" type="button" data-close-dialog>Agora não</button>
+    <button class="btn btn-primary" type="button" data-confirm-ok>Confirmar</button>
+  </div>
+</dialog>

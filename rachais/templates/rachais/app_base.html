@@ -1,0 +1,85 @@
+{% extends "rachais/base.html" %}
+{% load rachai %}
+{% comment %}
+  Estrutura do app logado: barra lateral no desktop; topo + navegação inferior
+  no celular. As páginas preenchem `content` e, se quiserem, `mobile_header`,
+  `fab` (botão + do meio) e `nav_groups_on` / `nav_account_on` (item ativo).
+{% endcomment %}
+
+{% block body %}
+{% with nav=groups|default:nav_groups %}
+<div class="app">
+  <aside class="sidebar glass" aria-label="Navegação">
+    <a class="brand" href="{% url 'rachais:group_list' %}" aria-label="RachAi, início">
+      {% include "rachais/_brand_mark.html" %}
+      <span class="brand-name">Rach<span>Ai</span></span>
+    </a>
+
+    <nav class="side-nav" aria-label="Seus grupos">
+      <p class="eyebrow">Seus grupos</p>
+      {% for g in nav %}
+        <a class="side-link{% if g.id == group.id %} on{% endif %}" href="{% url 'rachais:group_detail' g.id %}"{% if g.id == group.id %} aria-current="page"{% endif %}>
+          <span class="tile tile-sm t-{{ g.id|tone }}">{% icon g.name|group_icon 18 %}</span>
+          <span class="side-name">{{ g.name }}</span>
+        </a>
+      {% empty %}
+        <p class="hint" style="padding: 0 10px">Você ainda não participa de nenhum grupo.</p>
+      {% endfor %}
+      <a class="btn btn-ghost" href="{% url 'rachais:create_group' %}" style="justify-content: flex-start; margin-top: 6px; padding: 0 10px">{% icon "plus" %}Criar novo grupo</a>
+    </nav>
+
+    <div class="side-user">
+      <span class="avatar av-{{ user.id|tone }}">{{ user.get_short_name|default:user.username|initials }}</span>
+      <a class="side-user-link" href="{% url 'accounts:account' %}">
+        <p>{{ user.get_short_name|default:user.username }}</p>
+        <p>Minha conta</p>
+      </a>
+      {% include "rachais/_logout_link.html" with cls="side-logout" %}
+    </div>
+  </aside>
+
+  <div class="app-body">
+    {% block mobile_header %}
+      <header class="m-top glass">
+        <div class="m-top-row">
+          <a class="brand" href="{% url 'rachais:group_list' %}" aria-label="RachAi, início">
+            {% include "rachais/_brand_mark.html" %}
+            <span class="brand-name">Rach<span>Ai</span></span>
+          </a>
+          <span style="flex: 1"></span>
+          <a class="icon-btn" href="{% url 'accounts:account' %}" aria-label="Minha conta"><span class="avatar av-{{ user.id|tone }}">{{ user.get_short_name|default:user.username|initials }}</span></a>
+        </div>
+      </header>
+    {% endblock %}
+
+    {% if request.session.is_guest %}
+      <a class="guest-banner" href="{% url 'accounts:account' %}">
+        {% icon "user" %}
+        <span>Você entrou só com um nome. <strong>Complete seu cadastro</strong> para não perder o acesso.</span>
+        {% icon "chevron" 18 %}
+      </a>
+    {% endif %}
+
+    <main class="app-main" id="conteudo">
+      <div class="page {% block page_class %}{% endblock %}">
+        {% include "rachais/_messages.html" %}
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+
+  <nav class="bottom-nav glass" aria-label="Navegação principal">
+    <a class="nav-item{% block nav_groups_on %} on{% endblock %}" href="{% url 'rachais:group_list' %}">{% icon "users" 22 %}Grupos</a>
+    {% block fab %}
+      <a class="nav-fab" href="{% url 'rachais:create_group' %}" aria-label="Criar novo grupo">{% icon "plus" 26 %}</a>
+    {% endblock %}
+    <a class="nav-item{% block nav_account_on %}{% endblock %}" href="{% url 'accounts:account' %}">{% icon "user" 22 %}Conta</a>
+  </nav>
+</div>
+{% endwith %}
+{% endblock %}
+
+{% block dialogs %}
+  {% include "rachais/_confirm_dialog.html" %}
+  {% block page_dialogs %}{% endblock %}
+{% endblock %}

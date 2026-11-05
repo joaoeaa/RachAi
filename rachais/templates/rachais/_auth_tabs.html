@@ -1,0 +1,5 @@
+{# Abas Entrar / Criar conta. São links (cada uma é uma página) e levam o `next` junto. #}
+<nav class="tabs" aria-label="Acesso">
+  <a class="tab{% if active == 'login' %} on{% endif %}" href="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}"{% if active == 'login' %} aria-current="page"{% endif %}>Entrar</a>
+  <a class="tab{% if active == 'signup' %} on{% endif %}" href="{% url 'accounts:signup' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}"{% if active == 'signup' %} aria-current="page"{% endif %}>Criar conta</a>
+</nav>

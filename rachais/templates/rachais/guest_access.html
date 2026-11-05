@@ -1,27 +1,26 @@
-{% extends "rachais/base.html" %}
-{% load static %}
+{% extends "rachais/auth_base.html" %}
+{% load rachai %}
 
 {% block title %}Acesso · RachAi{% endblock %}
-{% block body_class %}auth-body{% endblock %}
 
-{% block content %}
-<div class="auth-shell">
-  <div class="auth-card">
-    <div class="auth-brand">
-      <img class="auth-logo" src="{% static 'rachai.png' %}" alt="Logotipo RachAi">
-      <span class="auth-brand-name">RachAi</span>
-    </div>
+{% block hero_copy %}<h1>De volta pros seus grupos</h1>{% endblock %}
+{% block hero_extra %}<p class="auth-lead">Este é um link pessoal de acesso de quem entrou no RachAi só com um nome.</p>{% endblock %}
 
-    <h1 class="auth-title">Entrar como {{ guest.first_name }}?</h1>
-    <p class="auth-subtitle">Este é o link pessoal de acesso de {{ guest.first_name }}. Continue só se for você.</p>
+{% block heading %}
+  <h2>Link pessoal de acesso</h2>
+  <p>Continue só se este link for seu.</p>
+{% endblock %}
 
-    <form method="post" class="auth-form">
-      {% csrf_token %}
-      <button class="auth-button primary" type="submit">Sou eu, continuar</button>
-      <div class="auth-switch">
-        <a class="auth-switch-link" href="{% url 'accounts:login' %}">Não sou eu</a>
-      </div>
-    </form>
+{% block card %}
+  <div class="who-box">
+    <span class="avatar avatar-lg av-{{ guest.id|tone }}">{{ guest.first_name|initials }}</span>
+    <div class="row-main"><p class="hint" style="font-weight: 600">Você vai entrar como</p><p style="font-size: 16px; font-weight: 800">{{ guest.first_name }}</p></div>
   </div>
-</div>
+  <h2 class="dlg-title">Entrar como {{ guest.first_name }}?</h2>
+  <p class="dlg-body">Quem tem este link entra nos grupos de {{ guest.first_name }}. Se não for você, volte para o login.</p>
+  <form method="post" class="auth-form">
+    {% csrf_token %}
+    <button class="btn btn-primary btn-lg" type="submit">Sou eu, continuar</button>
+  </form>
+  <p class="auth-switch"><a href="{% url 'accounts:login' %}">Não sou eu</a></p>
 {% endblock %}

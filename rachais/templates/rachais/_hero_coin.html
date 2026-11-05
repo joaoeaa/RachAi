@@ -1,0 +1,8 @@
+{# Moeda partida (SVG) dos cartões azuis. joined=True junta as metades; uid evita ids repetidos. #}
+<svg class="coin-svg hero-coin{% if joined %} joined{% endif %}" viewBox="0 0 120 120" aria-hidden="true" focusable="false" data-hero-coin>
+  <defs><radialGradient id="hcg-{{ uid }}" cx="34%" cy="28%" r="80%"><stop offset="0" stop-color="#FFF2BF"/><stop offset=".45" stop-color="#FFD047"/><stop offset=".85" stop-color="#F2AE00"/><stop offset="1" stop-color="#D99400"/></radialGradient></defs>
+  <ellipse cx="60" cy="110" rx="34" ry="5" fill="#001A4D" opacity=".28"/>
+  <g class="hl"><path d="M58 16a44 44 0 0 0 0 88Z" fill="#B87A00" transform="translate(3 4)"/><path d="M58 16a44 44 0 0 0 0 88Z" fill="url(#hcg-{{ uid }})"/><ellipse cx="40" cy="36" rx="8" ry="5" fill="#fff" opacity=".55"/></g>
+  <g class="hr"><path d="M62 16a44 44 0 0 1 0 88Z" fill="#B87A00" transform="translate(3 4)"/><path d="M62 16a44 44 0 0 1 0 88Z" fill="url(#hcg-{{ uid }})"/></g>
+  <g class="ok"><circle cx="92" cy="88" r="16" fill="#16B57D" stroke="#fff" stroke-width="3"/><path d="m85 88 5 5 9-10" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></g>
+</svg>

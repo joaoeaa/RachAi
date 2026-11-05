@@ -1,0 +1,11 @@
+{% load rachai %}{% if messages %}
+<div class="toasts" aria-live="polite">
+  {% for m in messages %}{% if m.level_tag == "success" or m.level_tag == "info" %}
+    <div class="toast" role="status">
+      {% if m.level_tag == "success" %}{% icon "check-circle" 20 "ic-ok" %}{% else %}{% icon "info" 20 "ic-ok" %}{% endif %}
+      <span>{{ m }}</span>
+      <button class="icon-btn" type="button" data-toast-close aria-label="Fechar aviso">{% icon "x" 18 %}</button>
+    </div>
+  {% endif %}{% endfor %}
+</div>
+{% endif %}

@@ -1,0 +1,9 @@
+{# Moeda 3D partida ao meio (CSS puro). Parâmetros: size (px), extra (classes). #}
+<div class="coin-stage {{ extra }}" style="--s: {{ size }}px" aria-hidden="true">
+  <div class="coin-shadow"></div>
+  <div class="coin">
+    {% for side in "lr" %}
+    <div class="half {{ side }}"><span class="lay" style="--k: -.9"></span><span class="lay" style="--k: -.6"></span><span class="lay" style="--k: -.3"></span><span class="lay hi" style="--k: 0"></span><span class="lay" style="--k: .3"></span><span class="lay" style="--k: .6"></span><span class="lay" style="--k: .9"></span><span class="face back"></span><span class="cut"></span><span class="face front"><b>R$</b></span></div>
+    {% endfor %}
+  </div>
+</div>

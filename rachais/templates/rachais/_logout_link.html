@@ -1,0 +1,1 @@
+{% load rachai %}<a class="{{ cls }}" href="{% url 'accounts:logout' %}"{% if request.session.is_guest %} data-confirm="Sair sem cadastro?" data-confirm-body="Sem e-mail e senha, você só volta pelo seu link pessoal de acesso (em Minha conta). Copie ele antes de sair." data-confirm-ok="Sair" data-confirm-tone="danger"{% endif %}>{% icon "logout" 18 %}Sair</a>

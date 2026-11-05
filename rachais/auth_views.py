@@ -59,7 +59,10 @@ def login_guest(request, user):
 
 
 def welcome_view(request):
-    return render(request, "rachais/index.html")
+    """A tela de entrada do redesign é o próprio login (com a moeda e o slogan)."""
+    if request.user.is_authenticated:
+        return redirect("rachais:home")
+    return redirect("accounts:login")
 
 
 @require_http_methods(["GET", "POST"])

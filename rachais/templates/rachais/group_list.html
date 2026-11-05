@@ -1,34 +1,68 @@
-{% extends "rachais/base.html" %}
+{% extends "rachais/app_base.html" %}
+{% load rachai %}
+
+{% block title %}Seus grupos · RachAi{% endblock %}
 
 {% block content %}
-<div class="dashboard-shell">
-  <aside class="dashboard-sidebar">
-    <div class="sidebar-card">
-      <div class="sidebar-title">Seus Grupos</div>
-      <a class="sidebar-action" href="{% url 'rachais:create_group' %}">+ Criar Novo Grupo</a>
-      <div class="sidebar-groups">
-        {% if groups %}
-          {% for g in groups %}
-            <a class="sidebar-link" href="{% url 'rachais:group_detail' g.id %}">{{ g.name }}</a>
-          {% endfor %}
-        {% else %}
-          <span class="sidebar-empty">Você ainda não participa de nenhum grupo.</span>
-        {% endif %}
-      </div>
-    </div>
-  </aside>
+<div class="home-top">
+  <div class="greet">
+    <p>E aí, {{ user.get_short_name|default:user.username }}!</p>
+    <h1>{% if cards %}Como estão as contas{% else %}Comece criando um grupo{% endif %}</h1>
+  </div>
 
-  <section class="dashboard-main">
-    <div class="panel">
-      <div class="panel-header">
-        <div>
-          <h1 class="panel-title">Comece criando um grupo</h1>
-          <p class="panel-subtitle">Convide amigos e registre despesas compartilhadas.</p>
-        </div>
-        <a class="btn-primary" href="{% url 'rachais:create_group' %}">Criar grupo</a>
+  {% if cards %}
+  <section aria-label="Resumo geral" class="hero-card summary-hero">
+    {% include "rachais/_hero_coin.html" with uid="home" joined=all_settled %}
+    <div class="summary-main">
+      <p class="eyebrow">Saldo geral</p>
+      <p class="big num">{{ net|brl_signed }}</p>
+      <p class="note">
+        {% if net > 0 %}Somando tudo, você tem mais a receber do que a pagar.
+        {% elif net < 0 %}Somando tudo, você ainda deve um pouco.
+        {% else %}Tudo certo: ninguém te deve e você não deve nada.{% endif %}
+      </p>
+    </div>
+    <div class="summary-mini">
+      <div>
+        <p class="owe"><span class="badge">{% icon "owe" 14 %}</span>Você deve</p>
+        <p class="owe num">{{ total_pay|brl }}</p>
       </div>
-      <p class="panel-text">Crie um grupo para cada viagem, evento ou conta compartilhada. Adicione participantes, registre despesas e acompanhe quem deve o quê.</p>
+      <div>
+        <p class="recv"><span class="badge">{% icon "receive" 14 %}</span>A receber</p>
+        <p class="recv num">{{ total_receive|brl }}</p>
+      </div>
     </div>
   </section>
+  {% endif %}
 </div>
+
+{% if cards %}
+<section style="display: flex; flex-direction: column; gap: 12px" aria-labelledby="groups-title">
+  <div class="section-head">
+    <h2 class="sec-h" id="groups-title">Seus grupos</h2>
+    <a class="btn btn-primary btn-sm" href="{% url 'rachais:create_group' %}">{% icon "plus" 18 %}Criar novo grupo</a>
+  </div>
+  <ul class="group-list">
+    {% for c in cards %}
+      <li><a class="group-card" href="{% url 'rachais:group_detail' c.group.id %}">
+        <span class="tile t-{{ c.group.id|tone }}">{% icon c.group.name|group_icon 24 %}</span>
+        <div class="row-main">
+          <p class="row-title">{{ c.group.name }}</p>
+          <p class="row-meta">{{ c.members }} pessoa{{ c.members|pluralize }} · {% if c.group.is_managed %}Gerenciado{% else %}Colaborativo{% endif %}</p>
+        </div>
+        {% if c.balance < 0 %}<span class="pill pill-neg num">Deve {{ c.balance|brl }}</span>
+        {% elif c.balance > 0 %}<span class="pill pill-pos num">Recebe {{ c.balance|brl }}</span>
+        {% else %}<span class="pill pill-neutral">{% icon "check" 14 %}Tudo certo</span>{% endif %}
+      </a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}
+<section class="card empty" aria-labelledby="empty-title">
+  <svg class="ill" viewBox="0 0 168 126" aria-hidden="true"><defs><radialGradient id="e1g" cx="32%" cy="26%" r="85%"><stop offset="0" stop-color="#FFF3C4"/><stop offset=".4" stop-color="#FFD24D"/><stop offset=".8" stop-color="#F2AE00"/><stop offset="1" stop-color="#CF8C00"/></radialGradient><radialGradient id="e1b" cx="32%" cy="26%" r="85%"><stop offset="0" stop-color="#C6E1FF"/><stop offset=".45" stop-color="#4C9EFF"/><stop offset="1" stop-color="#0052B8"/></radialGradient><radialGradient id="e1p" cx="32%" cy="26%" r="85%"><stop offset="0" stop-color="#FFE4EC"/><stop offset=".45" stop-color="#FF94B6"/><stop offset="1" stop-color="#D9457A"/></radialGradient><radialGradient id="e1s" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#0F1B2D" stop-opacity=".22"/><stop offset="1" stop-color="#0F1B2D" stop-opacity="0"/></radialGradient></defs><ellipse cx="84" cy="111" rx="72" ry="11" fill="url(#e1s)"/><g transform="rotate(-12 74 64)"><path d="M74 26a38 38 0 0 0 0 76Z" fill="#C98500" transform="translate(3 4)"/><path d="M74 26a38 38 0 0 0 0 76Z" fill="url(#e1g)"/><ellipse cx="58" cy="44" rx="7" ry="4.5" fill="#fff" opacity=".6"/></g><g transform="rotate(12 94 64)"><path d="M94 26a38 38 0 0 1 0 76Z" fill="#C98500" transform="translate(3 4)"/><path d="M94 26a38 38 0 0 1 0 76Z" fill="url(#e1g)"/><ellipse cx="104" cy="40" rx="5" ry="3" fill="#fff" opacity=".45"/></g><circle cx="26" cy="92" r="15" fill="#0047A3" transform="translate(2 3)"/><circle cx="26" cy="92" r="15" fill="url(#e1b)"/><ellipse cx="21" cy="85" rx="4.5" ry="3" fill="#fff" opacity=".6"/><circle cx="144" cy="90" r="12" fill="#B83466" transform="translate(2 3)"/><circle cx="144" cy="90" r="12" fill="url(#e1p)"/><ellipse cx="140" cy="85" rx="3.5" ry="2.2" fill="#fff" opacity=".6"/></svg>
+  <h2 id="empty-title">Nenhum grupo ainda</h2>
+  <p>Crie um grupo pra viagem, o bar ou a república e chame a galera. O RachAi faz a conta de quem deve quanto.</p>
+  <a class="btn btn-primary btn-lg" href="{% url 'rachais:create_group' %}" style="margin-top: 6px">{% icon "plus" %}Criar grupo</a>
+</section>
+{% endif %}
 {% endblock %}

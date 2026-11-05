@@ -7,7 +7,6 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.alert import Alert
 
 from decimal import Decimal
 from django.test import TestCase
@@ -97,6 +96,13 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         ).click()
         time.sleep(1)
 
+    def _pick_split_method(self, value):
+        """Escolhe o método de divisão clicando no segmento (o radio fica escondido)."""
+        self.selenium.find_element(
+            By.XPATH, "//label[.//input[@id='sm-{}']]".format(value)
+        ).click()
+        time.sleep(1)
+
     def _participant_id(self, group_name, user):
         """
         Id do Participant do usuário dentro do grupo.
@@ -141,7 +147,7 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         nome_grupo_input = wait.until(EC.presence_of_element_located((By.NAME, 'name')))
         nome_grupo_input.send_keys('Viagem de Férias')
         time.sleep(delay)
-        self.selenium.find_element(By.XPATH, "//button[text()='Criar']").click()
+        self.selenium.find_element(By.XPATH, "//button[normalize-space()='Criar grupo']").click()
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Viagem de Férias')]")))
         print("-> Grupo 'Viagem de Férias' criado com sucesso.")
         time.sleep(delay)
@@ -150,14 +156,14 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         email_participante_input = self.selenium.find_element(By.NAME, 'identifier')
         email_participante_input.send_keys(self.user2_email)
         time.sleep(delay)
-        self.selenium.find_element(By.XPATH, "//button[text()='+ Convidar']").click()
+        self.selenium.find_element(By.XPATH, "//form[contains(@action,'add-participant')]//button[@type='submit']").click()
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'adicionado(a) com sucesso!')]")))
-        wait.until(EC.presence_of_element_located((By.XPATH, "//li[@class='pill' and text()='Amigo']")))
+        wait.until(EC.presence_of_element_located((By.XPATH, "//section[contains(@class,'balance-summary')]//span[@class='person-name' and text()='Amigo']")))
         print(f"-> Participante '{self.user2_email}' adicionado com sucesso.")
         time.sleep(delay)
 
         print("[FLUXO IGUAL - ETAPA 4/5] - Adicionando Despesa (Divisão Igual)...")
-        self.selenium.find_element(By.LINK_TEXT, '+ Adicionar despesa').click()
+        self.selenium.find_element(By.LINK_TEXT, 'Adicionar despesa').click()
         description_input = wait.until(EC.presence_of_element_located((By.NAME, 'description')))
         description_input.send_keys('Jantar na Pizzaria')
         time.sleep(delay)
@@ -167,12 +173,12 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         select = Select(select_element)
         select.select_by_visible_text('Rafael')
         time.sleep(delay)
-        self.selenium.find_element(By.XPATH, "//button[text()='Salvar']").click()
+        self.selenium.find_element(By.XPATH, "//button[normalize-space()='Salvar despesa']").click()
         
         print("[FLUXO IGUAL - ETAPA 5/5] - Verificando o Resultado...")
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Jantar na Pizzaria')]")))
         page_source = self.selenium.page_source
-        self.assertIn('Pago por Rafael', page_source)
+        self.assertIn('Rafael pagou', page_source)
         self.assertIn('R$ 150,00', page_source)
         print("-> Despesa de R$ 150,00 adicionada e verificada com sucesso.")
         summary_div = wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'balance-summary')))
@@ -215,7 +221,7 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         nome_grupo_input = wait.until(EC.presence_of_element_located((By.NAME, 'name')))
         nome_grupo_input.send_keys('Churrasco 60/40') 
         time.sleep(delay)
-        self.selenium.find_element(By.XPATH, "//button[text()='Criar']").click()
+        self.selenium.find_element(By.XPATH, "//button[normalize-space()='Criar grupo']").click()
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Churrasco 60/40')]")))
         print("-> Grupo 'Churrasco 60/40' criado com sucesso.")
         time.sleep(delay)
@@ -223,14 +229,14 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         print("[FLUXO % - ETAPA 3/5] - Adicionando Participante...")
         self.selenium.find_element(By.NAME, 'identifier').send_keys(self.user2_email)
         time.sleep(delay)
-        self.selenium.find_element(By.XPATH, "//button[text()='+ Convidar']").click()
+        self.selenium.find_element(By.XPATH, "//form[contains(@action,'add-participant')]//button[@type='submit']").click()
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'adicionado(a) com sucesso!')]")))
-        wait.until(EC.presence_of_element_located((By.XPATH, "//li[@class='pill' and text()='Amigo']")))
+        wait.until(EC.presence_of_element_located((By.XPATH, "//section[contains(@class,'balance-summary')]//span[@class='person-name' and text()='Amigo']")))
         print(f"-> Participante '{self.user2_email}' adicionado com sucesso.")
         time.sleep(delay)
 
         print("[FLUXO % - ETAPA 4/5] - Adicionando Despesa por PORCENTAGEM...")
-        self.selenium.find_element(By.LINK_TEXT, '+ Adicionar despesa').click()
+        self.selenium.find_element(By.LINK_TEXT, 'Adicionar despesa').click()
         description_input = wait.until(EC.presence_of_element_located((By.NAME, 'description')))
         description_input.send_keys('Carnes do Churrasco')
         time.sleep(delay)
@@ -241,10 +247,7 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         select_payer.select_by_visible_text('Rafael') 
         time.sleep(delay)
         
-        split_method_dropdown = Select(wait.until(
-            EC.element_to_be_clickable((By.NAME, 'split_method'))
-        ))
-        split_method_dropdown.select_by_visible_text('Dividir por porcentagem (%)')
+        self._pick_split_method('UNEQUAL_PERCENTAGE')
         print("-> Método 'Dividir por porcentagem (%)' selecionado.")
         time.sleep(delay)
 
@@ -276,14 +279,14 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         time.sleep(delay) 
         
 
-        self.selenium.find_element(By.XPATH, "//button[text()='Salvar']").click()
+        self.selenium.find_element(By.XPATH, "//button[normalize-space()='Salvar despesa']").click()
         
         print("[FLUXO % - ETAPA 5/5] - Verificando o Resultado...")
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Carnes do Churrasco')]")))
         page_source = self.selenium.page_source
-        self.assertIn('Pago por Rafael', page_source)
+        self.assertIn('Rafael pagou', page_source)
         self.assertIn('R$ 200,00', page_source) 
-        print("-> Despesa de R$ 200,00 (Pago por Rafael) verificada.")
+        print("-> Despesa de R$ 200,00 (Rafael pagou) verificada.")
         time.sleep(delay)
         
         summary_div = wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'balance-summary')))
@@ -328,7 +331,7 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         nome_grupo_input = wait.until(EC.presence_of_element_located((By.NAME, 'name')))
         nome_grupo_input.send_keys('Mercado 100/50') 
         time.sleep(delay)
-        self.selenium.find_element(By.XPATH, "//button[text()='Criar']").click()
+        self.selenium.find_element(By.XPATH, "//button[normalize-space()='Criar grupo']").click()
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Mercado 100/50')]")))
         print("-> Grupo 'Mercado 100/50' criado com sucesso.")
         time.sleep(delay)
@@ -336,14 +339,14 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         print("[FLUXO VALOR - ETAPA 3/5] - Adicionando Participante...")
         self.selenium.find_element(By.NAME, 'identifier').send_keys(self.user2_email)
         time.sleep(delay)
-        self.selenium.find_element(By.XPATH, "//button[text()='+ Convidar']").click()
+        self.selenium.find_element(By.XPATH, "//form[contains(@action,'add-participant')]//button[@type='submit']").click()
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'adicionado(a) com sucesso!')]")))
-        wait.until(EC.presence_of_element_located((By.XPATH, "//li[@class='pill' and text()='Amigo']")))
+        wait.until(EC.presence_of_element_located((By.XPATH, "//section[contains(@class,'balance-summary')]//span[@class='person-name' and text()='Amigo']")))
         print(f"-> Participante '{self.user2_email}' adicionado com sucesso.")
         time.sleep(delay)
 
         print("[FLUXO VALOR - ETAPA 4/5] - Adicionando Despesa por VALOR EXATO...")
-        self.selenium.find_element(By.LINK_TEXT, '+ Adicionar despesa').click()
+        self.selenium.find_element(By.LINK_TEXT, 'Adicionar despesa').click()
         description_input = wait.until(EC.presence_of_element_located((By.NAME, 'description')))
         description_input.send_keys('Compras do Mercado')
         time.sleep(delay)
@@ -354,10 +357,7 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         select_payer.select_by_visible_text('Amigo') 
         time.sleep(delay)
         
-        split_method_dropdown = Select(wait.until(
-            EC.element_to_be_clickable((By.NAME, 'split_method'))
-        ))
-        split_method_dropdown.select_by_visible_text('Dividir por valores exatos (R$)')
+        self._pick_split_method('UNEQUAL_VALUE')
         print("-> Método 'Dividir por valores exatos (R$)' selecionado.")
         time.sleep(delay) 
 
@@ -380,14 +380,14 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         print(f"-> Input User 2 ({self.user2.id}): 50,00")
         time.sleep(delay)
         
-        self.selenium.find_element(By.XPATH, "//button[text()='Salvar']").click()
+        self.selenium.find_element(By.XPATH, "//button[normalize-space()='Salvar despesa']").click()
         
         print("[FLUXO VALOR - ETAPA 5/5] - Verificando o Resultado...")
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Compras do Mercado')]")))
         page_source = self.selenium.page_source
-        self.assertIn('Pago por Amigo', page_source)
+        self.assertIn('Amigo pagou', page_source)
         self.assertIn('R$ 150,00', page_source) 
-        print("-> Despesa de R$ 150,00 (Pago por Amigo) verificada.")
+        print("-> Despesa de R$ 150,00 (Amigo pagou) verificada.")
         time.sleep(delay)
         
         summary_div = wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'balance-summary')))
@@ -434,7 +434,7 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         nome_grupo_input = wait.until(EC.presence_of_element_located((By.NAME, 'name')))
         nome_grupo_input.send_keys('Grupo Pagamento')
         time.sleep(delay)
-        self.selenium.find_element(By.XPATH, "//button[text()='Criar']").click()
+        self.selenium.find_element(By.XPATH, "//button[normalize-space()='Criar grupo']").click()
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Grupo Pagamento')]")))
         print("-> Grupo 'Grupo Pagamento' criado com sucesso.")
         time.sleep(delay)
@@ -442,14 +442,14 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         print("[PAGAMENTO - ETAPA 3/10] - Adicionando Participante...")
         self.selenium.find_element(By.NAME, 'identifier').send_keys(self.user2_email)
         time.sleep(delay)
-        self.selenium.find_element(By.XPATH, "//button[text()='+ Convidar']").click()
+        self.selenium.find_element(By.XPATH, "//form[contains(@action,'add-participant')]//button[@type='submit']").click()
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'adicionado(a) com sucesso!')]")))
-        wait.until(EC.presence_of_element_located((By.XPATH, "//li[@class='pill' and text()='Amigo']")))
+        wait.until(EC.presence_of_element_located((By.XPATH, "//section[contains(@class,'balance-summary')]//span[@class='person-name' and text()='Amigo']")))
         print(f"-> Participante '{self.user2_email}' adicionado com sucesso.")
         time.sleep(delay)
 
         print("[PAGAMENTO - ETAPA 4/10] - Adicionando Despesa...")
-        self.selenium.find_element(By.LINK_TEXT, '+ Adicionar despesa').click()
+        self.selenium.find_element(By.LINK_TEXT, 'Adicionar despesa').click()
         description_input = wait.until(EC.presence_of_element_located((By.NAME, 'description')))
         description_input.send_keys('Conta do Bar')
         time.sleep(delay)
@@ -459,7 +459,7 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         Select(select_element).select_by_visible_text('Rafael')
         time.sleep(delay)
 
-        self.selenium.find_element(By.XPATH, "//button[text()='Salvar']").click()
+        self.selenium.find_element(By.XPATH, "//button[normalize-space()='Salvar despesa']").click()
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Conta do Bar')]")))
         print("-> Despesa 'Conta do Bar' (R$ 100,00) adicionada.")
         time.sleep(delay)
@@ -484,7 +484,7 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         email_input.send_keys(self.user2_email)
         self.selenium.find_element(By.NAME, 'password').send_keys(self.user2_pass)
         self.selenium.find_element(By.CSS_SELECTOR, 'button[type="submit"]').click()
-        wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Seus Grupos') or contains(text(), 'Comece criando um grupo')]")))
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Seus grupos') or contains(text(), 'Comece criando um grupo')]")))
         print("-> Login do Amigo realizado com sucesso.")
         time.sleep(delay)
 
@@ -504,19 +504,16 @@ class E2EFullFlowTests(StaticLiveServerTestCase):
         
         pagar_btn = wait.until(
             EC.element_to_be_clickable(
-                (By.XPATH, "//div[contains(@class,'debts-panel--pending')]//button[@class='btn-tertiary' and normalize-space(text())='Pagar']")
+                (By.XPATH, "//div[contains(@class,'debts-panel--pending')]//button[normalize-space()='Pagar']")
             )
         )
         
         pagar_btn.click()
         time.sleep(1)
         
-        try:
-            alert = Alert(self.selenium)
-            alert.accept()
-            print("-> Alert de confirmação aceito.")
-        except:
-            print("-> Nenhum alert encontrado (pode já ter sido processado).")
+        # A confirmação agora é um modal da página (não mais o alert do navegador).
+        wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, '#confirm-dialog [data-confirm-ok]'))).click()
+        print("-> Pagamento confirmado no modal.")
         
         time.sleep(delay)
 
@@ -636,7 +633,7 @@ class ManagedGroupTests(TestCase):
         detail = self.client.get(reverse('rachais:group_detail', args=[group.id]))
         self.assertEqual(detail.status_code, 200)
         page = detail.content.decode()
-        self.assertIn('Pago por Marcelo', page)
+        self.assertIn('Marcelo pagou', page)
         self.assertIn('Pedro', page)
         self.assertIn('sem conta', page)
 

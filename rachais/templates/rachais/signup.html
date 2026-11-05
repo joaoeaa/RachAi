@@ -1,76 +1,54 @@
-{% extends "rachais/base.html" %}
-{% load static %}
+{% extends "rachais/auth_base.html" %}
+{% load rachai %}
 
 {% block title %}Criar conta · RachAi{% endblock %}
-{% block body_class %}auth-body auth-body--signup{% endblock %}
 
-{% block topbar_actions %}
-  <a class="top-link top-link--ghost" href="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">Entrar</a>
+{% block heading %}
+  <h2>Bora começar</h2>
+  <p>Leva menos de um minuto. Depois é só chamar a galera.</p>
 {% endblock %}
 
-{% block content %}
-<div class="auth-shell">
-  <div class="auth-card auth-card--signup">
-    <div class="auth-brand">
-      <img class="auth-logo" src="{% static 'rachai.png' %}" alt="Logotipo RachAi">
-      <span class="auth-brand-name">RachAi</span>
+{% block card %}
+  {% include "rachais/_auth_tabs.html" with active="signup" %}
+
+  {% if invite_pending %}
+    <p class="notice notice-info">{% icon "users" %}<span>Crie sua conta e você já entra no grupo para o qual foi convidado(a).</span></p>
+  {% endif %}
+
+  <form method="post" class="auth-form">
+    {% csrf_token %}
+    {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
+
+    <div class="field">
+      <label class="label" for="first_name">Nome</label>
+      <div class="with-icon">{% icon "user" %}<input class="input" id="first_name" name="first_name" type="text" maxlength="60" autocomplete="name" placeholder="Como a galera te chama" value="{{ form.first_name|default:'' }}" required></div>
     </div>
 
-    <h1 class="auth-title">Criar conta</h1>
-    {% if invite_pending %}
-      <p class="auth-subtitle">Crie sua conta e você já entra no grupo para o qual foi convidado(a).</p>
-    {% else %}
-      <p class="auth-subtitle">Preencha seus dados para começar</p>
-    {% endif %}
+    <div class="field">
+      <label class="label" for="email">E-mail</label>
+      <div class="with-icon">{% icon "mail" %}<input class="input" id="email" name="email" type="email" autocomplete="email" placeholder="voce@email.com" value="{{ form.email|default:'' }}" required></div>
+    </div>
 
-    {% if messages %}
-      <div class="auth-messages">
-        {% for m in messages %}
-          <div class="auth-message {{ m.tags }}">{{ m }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
+    <div class="field">
+      <label class="label" for="password">Senha</label>
+      <div class="with-icon">{% icon "lock" %}<input class="input" id="password" name="password" type="password" autocomplete="new-password" minlength="8" aria-describedby="password-hint" required></div>
+      <span class="hint" id="password-hint">Pelo menos 8 caracteres.</span>
+    </div>
 
-    <form method="post" class="auth-form">
-      {% csrf_token %}
-      {% if request.GET.next %}
-        <input type="hidden" name="next" value="{{ request.GET.next }}">
-      {% endif %}
-      <div class="field">
-        <label class="auth-label" for="first_name">Nome</label>
-        <input class="auth-input" id="first_name" name="first_name" type="text" placeholder="Ex.: Ana Silva" value="{{ form.first_name|default:'' }}" required>
-      </div>
+    <div class="field">
+      <label class="label" for="confirm_password">Confirme a senha</label>
+      <div class="with-icon">{% icon "lock" %}<input class="input" id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" required></div>
+    </div>
 
-      <div class="field">
-        <label class="auth-label" for="email">Email</label>
-        <input class="auth-input" id="email" name="email" type="email" placeholder="exemplo@email.com" value="{{ form.email|default:'' }}" required>
-      </div>
+    <div class="field">
+      <label class="label" for="pix_key">Chave Pix <small>(opcional)</small></label>
+      <div class="with-icon">{% icon "key" %}<input class="input" id="pix_key" name="pix_key" type="text" maxlength="77" autocomplete="off" placeholder="Celular, e-mail ou chave aleatória" value="{{ form.pix_key|default:'' }}" aria-describedby="pix-hint"></div>
+      <span class="hint" id="pix-hint">Aparece para a galera dos seus grupos na hora de te pagar. Dá para mudar depois em Minha conta.</span>
+    </div>
 
-      <div class="field">
-        <label class="auth-label" for="password">Senha</label>
-        <input class="auth-input" id="password" name="password" type="password" placeholder="********" required>
-      </div>
+    <p class="hint">Ao continuar, você aceita os termos do serviço.</p>
+    <button class="btn btn-primary btn-lg" type="submit">Criar conta</button>
+  </form>
 
-      <div class="field">
-        <label class="auth-label" for="confirm_password">Confirmar senha</label>
-        <input class="auth-input" id="confirm_password" name="confirm_password" type="password" placeholder="********" required>
-      </div>
-
-      <div class="field">
-        <label class="auth-label" for="pix_key">Chave Pix <small class="auth-optional">(opcional)</small></label>
-        <input class="auth-input" id="pix_key" name="pix_key" type="text" maxlength="77" placeholder="Celular, e-mail ou chave aleatória" value="{{ form.pix_key|default:'' }}" autocomplete="off">
-        <p class="auth-hint">Aparece para quem está nos seus grupos, para te pagarem. Dá para mudar depois em Minha conta.</p>
-      </div>
-
-      <p class="auth-terms">Ao continuar, você aceita os termos do serviço.</p>
-
-      <button class="auth-button primary" type="submit">Cadastrar</button>
-
-      <div class="auth-switch">
-        <span>Já tem conta?</span>
-        <a class="auth-switch-link" href="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">Entrar</a>
-      </div>
-    </form>
-  </div>
-</div>
+  <p class="auth-switch">Já tem conta? <a href="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">Entrar</a></p>
 {% endblock %}

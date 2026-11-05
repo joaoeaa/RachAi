@@ -1,0 +1,11 @@
+{% load rachai %}{% if messages %}
+{# Erros e avisos ficam no corpo da página, perto do que precisa ser corrigido. Sucessos viram toast (_toasts.html). #}
+<div class="msg-stack">
+  {% for m in messages %}{% if m.level_tag == "error" or m.level_tag == "warning" %}
+    <div class="msg msg-{{ m.level_tag }}" role="alert">
+      {% if m.level_tag == "error" %}{% icon "alert" %}{% else %}{% icon "warn" %}{% endif %}
+      <p>{{ m }}</p>
+    </div>
+  {% endif %}{% endfor %}
+</div>
+{% endif %}

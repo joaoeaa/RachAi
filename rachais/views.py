@@ -4,6 +4,7 @@ from collections import defaultdict
 from types import SimpleNamespace
 from django.db import transaction
 from .auth_views import login_guest
+from .templatetags.rachai import brl
 from .models import (
     Group, Participant, Expense, ExpenseSplit, Payment, create_guest_user, user_display_name,
 )
@@ -207,13 +208,34 @@ def _my_debts_snapshot(user):
         "paid": sorted(paid, key=lambda p: p.created_at, reverse=True),
         "balances_by_group": balances_by_group,
         "participants_by_group": participants_by_group,
+        "groups": sidebar_groups,
     }
 
 
 @login_required
 def group_list(request):
-    groups = _sidebar_groups_qs(request.user)
-    return render(request, "rachais/group_list.html", {"groups": groups})
+    """Home: saldo geral e um cartão por grupo, tudo a partir do snapshot em lote."""
+    snap = _my_debts_snapshot(request.user)
+    cards = []
+    for g in snap["groups"]:
+        parts = snap["participants_by_group"].get(g.id, [])
+        mine = next((p for p in parts if p.user_id == request.user.id), None)
+        balance = Decimal("0")
+        if mine:
+            balance = snap["balances_by_group"].get(g.id, {}).get(mine.id, Decimal("0"))
+        if abs(balance) < Decimal("0.01"):
+            balance = Decimal("0")
+        cards.append(SimpleNamespace(group=g, members=len(parts), balance=balance))
+    total_pay = sum((d["amount"] for d in snap["pending_to_pay"]), Decimal("0"))
+    total_receive = sum((d["amount"] for d in snap["pending_to_receive"]), Decimal("0"))
+    return render(request, "rachais/group_list.html", {
+        "groups": snap["groups"],
+        "cards": cards,
+        "total_pay": total_pay,
+        "total_receive": total_receive,
+        "net": total_receive - total_pay,
+        "all_settled": not total_pay and not total_receive,
+    })
 
 
 @login_required
@@ -235,10 +257,22 @@ def group_detail(request, group_id):
 
     settlements = _calculate_settlements(balances, participants)
 
+    max_abs = max((abs(balances.get(p.id, Decimal("0"))) for p in participants), default=Decimal("0"))
     for participant in participants:
         balance = balances.get(participant.id, Decimal("0"))
+        if abs(balance) < Decimal("0.01"):
+            balance = Decimal("0")
         setattr(participant, "balance", balance)
         setattr(participant, "balance_abs", balance.copy_abs())
+        setattr(participant, "bar", int(round(abs(balance) / max_abs * 100)) if max_abs else 0)
+        amount_txt = brl(balance)
+        if balance > 0:
+            sub = f"Tem {amount_txt} a receber no grupo"
+        elif balance < 0:
+            sub = f"Deve {amount_txt} no grupo"
+        else:
+            sub = "Está em dia no grupo"
+        setattr(participant, "pix_sub", sub)
 
     # Saldos agrupados: primeiro quem tem a receber (do maior para o menor),
     # depois quem tem a pagar (da maior dívida para a menor) e, por fim, os quites.
@@ -273,6 +307,20 @@ def group_detail(request, group_id):
 
         setattr(e, "split_list", split_list)
 
+    me = next((p for p in participants if p.user_id == request.user.id), None)
+    my_balance = me.balance if me else Decimal("0")
+    my_share = sum(
+        (s.amount_owed for s in all_splits if me and s.participant_id == me.id),
+        Decimal("0"),
+    )
+    # A página do grupo mostra só as pendências deste grupo.
+    group_debts = {
+        key: [d for d in my_debts[key] if d["group"].id == group.id]
+        for key in ("pending_to_pay", "pending_to_receive", "managed_pending")
+    }
+    group_debts["paid"] = [pay for pay in my_debts["paid"] if pay.group_id == group.id]
+    pending_count = sum(len(group_debts[k]) for k in ("pending_to_pay", "pending_to_receive", "managed_pending"))
+
     invite_url = None
     if not group.is_managed and _can_manage(group, request.user):
         invite_url = request.build_absolute_uri(
@@ -290,7 +338,11 @@ def group_detail(request, group_id):
             "balance_rows": balance_rows,
             "total": total,
             "settlements": settlements,
-            "my_debts": my_debts,
+            "my_debts": group_debts,
+            "pending_count": pending_count,
+            "my_balance": my_balance,
+            "my_share": my_share,
+            "my_settled": my_balance == 0,
             "can_manage": _can_manage(group, request.user),
             "invite_url": invite_url,
         }
@@ -468,6 +520,7 @@ def join_group(request, token):
             "group": group,
             "creator_name": user_display_name(group.creator),
             "participant_count": group.participants.count(),
+            "preview": list(group.participants.select_related("user").order_by("id")[:4]),
             "guest_name": guest_name,
             "guest_name_max": GUEST_NAME_MAX_LENGTH,
         },

@@ -1,312 +1,319 @@
-{% extends "rachais/base.html" %}
-{% load l10n %}
+{% extends "rachais/app_base.html" %}
+{% load rachai %}
+
+{% block title %}{{ group.name }} · RachAi{% endblock %}
+
+{% block mobile_header %}
+  <header class="m-top glass">
+    <div class="m-top-row">
+      <a class="icon-btn" href="{% url 'rachais:group_list' %}" aria-label="Voltar para seus grupos">{% icon "back" %}</a>
+      <div class="m-top-title">
+        <p class="m-top-name">{{ group.name }}</p>
+        <p>{{ participants|length }} pessoa{{ participants|length|pluralize }} · {% if group.is_managed %}Gerenciado{% else %}Colaborativo{% endif %}</p>
+      </div>
+      <a class="icon-btn" href="{% url 'rachais:add_expense' group.id %}" aria-label="Adicionar despesa">{% icon "receipt" %}</a>
+    </div>
+    <nav class="m-chips" aria-label="Seus grupos">
+      {% for g in groups %}
+        <a class="gchip{% if g.id == group.id %} on{% endif %}" href="{% url 'rachais:group_detail' g.id %}"{% if g.id == group.id %} aria-current="page"{% endif %}>{{ g.name }}</a>
+      {% endfor %}
+      <a class="gchip" href="{% url 'rachais:create_group' %}" aria-label="Criar novo grupo">{% icon "plus" 16 %}Novo</a>
+    </nav>
+  </header>
+{% endblock %}
+
+{% block fab %}
+  <a class="nav-fab" href="{% url 'rachais:add_expense' group.id %}" aria-label="Adicionar despesa">{% icon "plus" 26 %}</a>
+{% endblock %}
 
 {% block content %}
-<div class="dashboard-shell">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false"><defs><radialGradient id="mcg" cx="34%" cy="28%" r="80%"><stop offset="0" stop-color="#FFF2BF"/><stop offset=".45" stop-color="#FFD047"/><stop offset=".85" stop-color="#F2AE00"/><stop offset="1" stop-color="#D99400"/></radialGradient></defs></svg>
 
-  <aside class="dashboard-sidebar">
-    <div class="sidebar-card">
-      <div class="sidebar-title">Seus Grupos</div>
-      <a class="sidebar-action" href="{% url 'rachais:create_group' %}">+ Criar Novo Grupo</a>
-      <div class="sidebar-groups">
-        {% for g in groups %}
-          <a class="sidebar-link {% if g.id == group.id %}is-active{% endif %}" href="{% url 'rachais:group_detail' g.id %}">{{ g.name }}</a>
-        {% empty %}
-          <span class="sidebar-empty">Você ainda não participa de nenhum grupo.</span>
-        {% endfor %}
+<div class="group-head">
+  <div style="display: flex; align-items: center; gap: 14px; min-width: 0">
+    <span class="tile tile-lg t-{{ group.id|tone }}">{% icon group.name|group_icon 28 %}</span>
+    <div style="min-width: 0">
+      <h1>{{ group.name }}</h1>
+      <div class="group-head-meta">
+        <span class="pill pill-neutral">{% if group.is_managed %}Gerenciado{% else %}Colaborativo{% endif %}</span>
+        <span class="avatar-stack">{% for p in participants|slice:":5" %}<span class="avatar av-{{ p.id|tone }}">{{ p.display_name|initials }}</span>{% endfor %}</span>
+        <span>{{ participants|length }} pessoa{{ participants|length|pluralize }}</span>
       </div>
     </div>
-    <div class="sidebar-card debts-card">
-      <div class="sidebar-title">Minhas Dívidas</div>
+  </div>
+  <a class="btn btn-primary" href="{% url 'rachais:add_expense' group.id %}">{% icon "plus" %}Adicionar despesa</a>
+</div>
 
-      <div class="debts-tabs">
-        <input type="radio" id="tab-pendentes" name="debts-tab" class="debts-tab-radio" checked>
-        <label for="tab-pendentes" class="debts-tab-label">Pendentes</label>
+{% if group.is_managed %}
+  <p class="notice notice-info" role="status">{% icon "info" %}<span>Grupo gerenciado: você lança as despesas e registra os acertos entre a galera.</span></p>
+{% endif %}
 
-        <input type="radio" id="tab-quitadas" name="debts-tab" class="debts-tab-radio">
-        <label for="tab-quitadas" class="debts-tab-label">Quitadas</label>
-      </div>
-
-      <div class="debts-panels">
-        <div class="debts-panel debts-panel--pending">
-          {% if my_debts.pending_to_pay or my_debts.pending_to_receive or my_debts.managed_pending %}
-            {% if my_debts.pending_to_pay %}
-              <p class="debts-subtitle">Você deve:</p>
-              <ul class="debts-list">
-                {% for debt in my_debts.pending_to_pay %}
-                  <li class="debts-item">
-                    <div>
-                      <strong>{% include "rachais/_person.html" with p=debt.counterparty %}</strong>
-                      <small class="debts-group">{{ debt.group.name }}</small>
-                    </div>
-                    <div class="debts-actions">
-                      <span class="debts-amount">R$ {{ debt.amount|localize }}</span>
-                      <form method="post" action="{% url 'rachais:pay_debt' %}" onsubmit="return confirm('Confirmar pagamento de R$ {{ debt.amount|localize }} para {{ debt.counterparty.display_name }}?');">
-                        {% csrf_token %}
-                        <input type="hidden" name="group_id" value="{{ debt.group.id }}">
-                        <input type="hidden" name="payer_id" value="{{ debt.payer.id }}">
-                        <input type="hidden" name="receiver_id" value="{{ debt.counterparty.id }}">
-                        <input type="hidden" name="amount" value="{{ debt.amount|floatformat:2 }}">
-                        <button type="submit" class="btn-tertiary">Pagar</button>
-                      </form>
-                    </div>
-                  </li>
-                {% endfor %}
-              </ul>
-            {% endif %}
-
-            {% if my_debts.pending_to_receive %}
-              <p class="debts-subtitle">Devem a você:</p>
-              <ul class="debts-list">
-                {% for debt in my_debts.pending_to_receive %}
-                  <li class="debts-item">
-                    <div>
-                      <strong>{% include "rachais/_person.html" with p=debt.counterparty %}</strong>
-                      <small class="debts-group">{{ debt.group.name }}</small>
-                    </div>
-                    <span class="debts-amount positive">R$ {{ debt.amount|localize }}</span>
-                  </li>
-                {% endfor %}
-              </ul>
-            {% endif %}
-
-            {% if my_debts.managed_pending %}
-              <p class="debts-subtitle">Acertos entre participantes:</p>
-              <ul class="debts-list">
-                {% for debt in my_debts.managed_pending %}
-                  <li class="debts-item">
-                    <div>
-                      <strong>{% include "rachais/_person.html" with p=debt.payer %} → {% include "rachais/_person.html" with p=debt.counterparty %}</strong>
-                      <small class="debts-group">{{ debt.group.name }}</small>
-                    </div>
-                    <div class="debts-actions">
-                      <span class="debts-amount">R$ {{ debt.amount|localize }}</span>
-                      <form method="post" action="{% url 'rachais:pay_debt' %}" onsubmit="return confirm('Registrar que {{ debt.payer.display_name }} pagou R$ {{ debt.amount|localize }} para {{ debt.counterparty.display_name }}?');">
-                        {% csrf_token %}
-                        <input type="hidden" name="group_id" value="{{ debt.group.id }}">
-                        <input type="hidden" name="payer_id" value="{{ debt.payer.id }}">
-                        <input type="hidden" name="receiver_id" value="{{ debt.counterparty.id }}">
-                        <input type="hidden" name="amount" value="{{ debt.amount|floatformat:2 }}">
-                        <button type="submit" class="btn-tertiary">Quitar</button>
-                      </form>
-                    </div>
-                  </li>
-                {% endfor %}
-              </ul>
-            {% endif %}
-          {% else %}
-            <p class="sidebar-empty">Nenhuma pendência no momento.</p>
-          {% endif %}
-        </div>
-
-        <div class="debts-panel debts-panel--paid">
-          {% if my_debts.paid %}
-            <ul class="debts-list">
-              {% for payment in my_debts.paid %}
-                <li class="debts-item debts-item--paid">
-                  <div>
-                    {% if payment.payer.user_id == user.id %}
-                      Você pagou <strong>{{ payment.receiver.display_name }}</strong>
-                    {% elif payment.receiver.user_id == user.id %}
-                      <strong>{{ payment.payer.display_name }}</strong> pagou você
-                    {% else %}
-                      <strong>{{ payment.payer.display_name }}</strong> pagou <strong>{{ payment.receiver.display_name }}</strong>
-                    {% endif %}
-                    <small class="debts-group">{{ payment.group.name }}</small>
-                  </div>
-                  <div class="debts-meta">
-                    <span class="debts-amount">R$ {{ payment.amount|localize }}</span>
-                    <span class="debts-date">{{ payment.created_at|date:"d/m/Y H:i" }}</span>
-                    {% if payment.can_undo %}
-                      <form method="post" action="{% url 'rachais:undo_payment' payment.group_id payment.id %}" onsubmit="return confirm('Desfazer o pagamento de R$ {{ payment.amount|localize }} de {{ payment.payer.display_name }} para {{ payment.receiver.display_name }}? A dívida volta a aparecer como pendente.');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-tertiary btn-danger">Desfazer</button>
-                      </form>
-                    {% endif %}
-                  </div>
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p class="sidebar-empty">Nenhum pagamento registrado.</p>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-  </aside>
-
-  <section class="dashboard-main">
-  
-    {% if messages %}
-      <div class="flash-stack">
-        {% for m in messages %}
-          <div class="flash flash-{{ m.tags|default:'info' }}">{{ m }}</div>
-        {% endfor %}
-      </div>
+<section class="group-summary" aria-label="Resumo do grupo">
+  <div class="hero-card balance-hero">
+    {% include "rachais/_hero_coin.html" with uid="group" joined=my_settled %}
+    <p class="eyebrow">Seu saldo no grupo</p>
+    <p class="big num">{{ my_balance|brl_signed }}</p>
+    {% if my_balance < 0 %}
+      <span class="pill pill-neg">{% icon "owe" 15 %}{% if my_debts.pending_to_pay|length == 1 %}Você deve para {{ my_debts.pending_to_pay.0.counterparty.display_name }}{% else %}Você tem dívidas pendentes{% endif %}</span>
+    {% elif my_balance > 0 %}
+      <span class="pill pill-pos">{% icon "receive" 15 %}Você tem a receber</span>
+    {% else %}
+      <span class="pill pill-neutral">{% icon "check" 15 %}Tudo certo por aqui</span>
     {% endif %}
-
-    <div class="panel">
-      <div class="panel-header panel-header--between">
-        <div>
-          <h1 class="panel-title">{{ group.name }}</h1>
-          <p class="panel-subtitle">
-            {% if group.is_managed %}
-              Grupo gerenciado por você — cadastre os nomes e os gastos de todo mundo.
-            {% else %}
-              Grupo colaborativo — cada participante entra com a própria conta.
-            {% endif %}
-          </p>
-        </div>
-        <a class="btn-primary" href="{% url 'rachais:add_expense' group.id %}">+ Adicionar despesa</a>
-      </div>
+    <div class="split">
+      <p>Total<strong class="num">{{ total|brl }}</strong></p>
+      <p>Sua parte<strong class="num">{{ my_share|brl }}</strong></p>
     </div>
+  </div>
+  <div class="card total-card">
+    <p class="eyebrow">Total do grupo</p>
+    <p class="big num">{{ total|brl }}</p>
+    <p class="hint" style="margin-top: 4px; font-size: 14px">{{ expenses|length }} despesa{{ expenses|length|pluralize }} · sua parte <strong class="num" style="color: var(--ink-2)">{{ my_share|brl }}</strong></p>
+  </div>
+</section>
 
-    <div class="panel">
-      <div class="panel-header panel-header--between">
-        <h2 class="panel-title">Participantes</h2>
-        {% if can_manage %}
-          <form class="inline-form" method="post" action="{% url 'rachais:add_participant' group.id %}">
-            {% csrf_token %}
-            {% if group.is_managed %}
-              <label class="sr-only" for="guest_name">Nome do participante</label>
-              <input class="inline-input" id="guest_name" name="guest_name" type="text" maxlength="100" placeholder="Nome da pessoa" required>
-              <button class="btn-secondary" type="submit">+ Adicionar</button>
-            {% else %}
-              <label class="sr-only" for="identifier">Adicionar participante</label>
-              <input class="inline-input" id="identifier" name="identifier" type="text" placeholder="Username ou e-mail" required>
-              <button class="btn-secondary" type="submit">+ Convidar</button>
-            {% endif %}
-          </form>
+<div class="group-cols">
+  <div class="group-col-main">
+
+    <section class="card card-pad debts" aria-labelledby="debts-title">
+      <div class="section-head">
+        <h2 class="sec-h" id="debts-title">Minhas dívidas</h2>
+        <div class="tabs" role="group" aria-label="Situação das dívidas">
+          <input type="radio" id="tab-pendentes" name="debts-tab" class="tab-radio" checked>
+          <label for="tab-pendentes" class="tab">Pendentes · {{ pending_count }}</label>
+          <input type="radio" id="tab-quitadas" name="debts-tab" class="tab-radio">
+          <label for="tab-quitadas" class="tab">Quitadas · {{ my_debts.paid|length }}</label>
+        </div>
+      </div>
+
+      <div class="debts-panel debts-panel--pending">
+        {% if not pending_count %}
+          <p class="empty-mini">{% icon "check" 20 "ic-pos" %}Nenhuma pendência no momento. Tudo certo por aqui!</p>
+        {% else %}
+          <div class="debt-group">
+            <p class="eyebrow">Você deve</p>
+            {% for debt in my_debts.pending_to_pay %}
+              <form class="settle-row" method="post" action="{% url 'rachais:pay_debt' %}"
+                    data-confirm="Registrar pagamento?"
+                    data-confirm-body="Você vai marcar {{ debt.amount|brl }} pagos para {{ debt.counterparty.display_name }}. Dá para desfazer depois em Quitadas."
+                    data-confirm-ok="Sim, paguei" data-celebrate data-mine>
+                {% csrf_token %}
+                <input type="hidden" name="group_id" value="{{ group.id }}">
+                <input type="hidden" name="payer_id" value="{{ debt.payer.id }}">
+                <input type="hidden" name="receiver_id" value="{{ debt.counterparty.id }}">
+                <input type="hidden" name="amount" value="{{ debt.amount|floatformat:'2u' }}">
+                {% include "rachais/_mini_coin.html" %}
+                <div class="row-main"><p>Você deve para</p><p class="row-title">{% include "rachais/_person.html" with p=debt.counterparty tag=True %}</p></div>
+                <span class="amt num neg">{{ debt.amount|brl }}</span>
+                <button class="btn btn-primary btn-sm" type="submit">Pagar</button>
+              </form>
+            {% empty %}
+              <p class="empty-mini">{% icon "check" 20 "ic-pos" %}Você está em dia neste grupo.</p>
+            {% endfor %}
+          </div>
+
+          <div class="debt-group">
+            <p class="eyebrow">Devem a você</p>
+            {% for debt in my_debts.pending_to_receive %}
+              <div class="settle-row">
+                <span class="avatar av-{{ debt.counterparty.id|tone }}">{{ debt.counterparty.display_name|initials }}</span>
+                <div class="row-main"><p>Deve para você</p><p class="row-title">{{ debt.counterparty.display_name }}</p></div>
+                <span class="amt num pos">{{ debt.amount|brl }}</span>
+              </div>
+            {% empty %}
+              <p class="empty-mini">{% icon "minus" %}Ninguém te deve aqui por enquanto.</p>
+            {% endfor %}
+          </div>
+
+          {% if my_debts.managed_pending %}
+            <div class="debt-group">
+              <p class="eyebrow">Acertos entre participantes</p>
+              {% for debt in my_debts.managed_pending %}
+                <form class="settle-row" method="post" action="{% url 'rachais:pay_debt' %}"
+                      data-confirm="Quitar acerto?"
+                      data-confirm-body="Confirma que {{ debt.payer.display_name }} já pagou {{ debt.amount|brl }} para {{ debt.counterparty.display_name }}?"
+                      data-confirm-ok="Quitar" data-confirm-tone="pos" data-celebrate>
+                  {% csrf_token %}
+                  <input type="hidden" name="group_id" value="{{ group.id }}">
+                  <input type="hidden" name="payer_id" value="{{ debt.payer.id }}">
+                  <input type="hidden" name="receiver_id" value="{{ debt.counterparty.id }}">
+                  <input type="hidden" name="amount" value="{{ debt.amount|floatformat:'2u' }}">
+                  {% include "rachais/_mini_coin.html" %}
+                  <div class="row-main"><p>{{ debt.payer.display_name }} deve para</p><p class="row-title">{% include "rachais/_person.html" with p=debt.counterparty tag=True %}</p></div>
+                  <span class="amt num">{{ debt.amount|brl }}</span>
+                  <button class="btn btn-success btn-sm" type="submit">{% icon "check" 18 %}Quitar</button>
+                </form>
+              {% endfor %}
+            </div>
+          {% endif %}
         {% endif %}
       </div>
 
-      {% if participants %}
-        <ul class="pill-list">
-          {% for p in participants %}
-            <li class="pill">{% include "rachais/_person.html" %}{% if p.pix_key %} <small class="pill-tag">pix</small>{% endif %}{% if p.is_guest %} <small class="pill-tag">sem conta</small>{% endif %}</li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="panel-empty">Nenhum participante ainda.</p>
-      {% endif %}
-
-      {% if invite_url %}
-        <div class="invite-box">
-          <div class="invite-head">
-            <strong>Link de convite</strong>
-            <small>Quem abrir este link entra no grupo, mesmo quem ainda não tem conta no RachAi (cria na hora).</small>
-          </div>
-          <div class="invite-row">
-            <label class="sr-only" for="invite_link">Link de convite</label>
-            <input class="inline-input invite-input" id="invite_link" type="text" value="{{ invite_url }}" readonly onfocus="this.select()">
-            <button class="btn-secondary" type="button" data-copy-target="invite_link">Copiar link</button>
-            <a class="btn-secondary" href="https://wa.me/?text={{ 'Bora rachar as contas do grupo "'|urlencode }}{{ group.name|urlencode }}{{ '" no RachAi? Entra por aqui: '|urlencode }}{{ invite_url|urlencode }}" target="_blank" rel="noopener">WhatsApp</a>
-          </div>
-          <form method="post" action="{% url 'rachais:regenerate_invite' group.id %}" onsubmit="return confirm('Gerar um novo link? Quem tiver o link atual não vai mais conseguir entrar.');">
-            {% csrf_token %}
-            <button class="btn-tertiary" type="submit">Gerar novo link</button>
-          </form>
-        </div>
-      {% endif %}
-    </div>
-
-    <div class="panel">
-      <div class="panel-header">
-        <h2 class="panel-title">Resumo Consolidado</h2>
-      </div>
-
-      {% if settlements %}
-        <div class="summary-info">
-          <p><strong>Transferências sugeridas:</strong></p>
-          <ul class="settlement-list">
-            {% for s in settlements %}
-              <li class="settlement-item">
-                <span class="settlement-debtor">{% include "rachais/_person.html" with p=s.person_from %}</span>
-                deve
-                <span class="settlement-amount">R$ {{ s.amount|localize }}</span>
-                para
-                <span class="settlement-creditor">{% include "rachais/_person.html" with p=s.person_to %}</span>
-              </li>
-            {% endfor %}
-          </ul>
-        </div>
-
-        <div class="balance-summary">
-          <p><strong>Saldo individual:</strong></p>
-          <ul class="balance-list">
-            {% for participant in balance_rows %}
-              <li class="balance-item">
-                <span class="balance-name">{{ participant.display_name }}:</span>
-                {% if participant.balance > 0 %}
-                  <span class="balance-positive">R$ {{ participant.balance|localize }}</span> a receber
-                {% elif participant.balance < 0 %}
-                  <span class="balance-negative">R$ {{ participant.balance_abs|localize }}</span> a pagar
-                {% else %}
-                  <span class="balance-zero">R$ 0,00</span> quite
+      <div class="debts-panel debts-panel--paid">
+        {% if my_debts.paid %}
+          <ul class="list-box">
+            {% for payment in my_debts.paid %}
+              <li class="row">
+                <span class="tile tile-sm t-pos" style="width: 36px; height: 36px; border-radius: 11px">{% icon "check" 18 %}</span>
+                <div class="row-main">
+                  <p class="row-title" style="font-size: 14px">
+                    {% if payment.payer.user_id == user.id %}Você pagou {{ payment.receiver.display_name }}
+                    {% elif payment.receiver.user_id == user.id %}{{ payment.payer.display_name }} pagou você
+                    {% else %}{{ payment.payer.display_name }} pagou {{ payment.receiver.display_name }}{% endif %}
+                  </p>
+                  <p class="row-meta num">{{ payment.amount|brl }} · {{ payment.created_at|date:"d/m/Y" }}</p>
+                </div>
+                {% if payment.can_undo %}
+                  <form method="post" action="{% url 'rachais:undo_payment' payment.group_id payment.id %}"
+                        data-confirm="Desfazer pagamento?"
+                        data-confirm-body="O pagamento de {{ payment.amount|brl }} sai do histórico e a dívida volta para Pendentes."
+                        data-confirm-ok="Desfazer">
+                    {% csrf_token %}
+                    <button class="btn btn-ghost btn-sm" type="submit">{% icon "undo" 18 %}Desfazer</button>
+                  </form>
                 {% endif %}
               </li>
             {% endfor %}
           </ul>
-        </div>
-      {% else %}
-        <p class="panel-empty">Nenhuma dívida no momento. Tudo certo por aqui!</p>
-      {% endif %}
-    </div>
-
-    <div class="panel">
-      <div class="panel-header panel-header--between">
-        <h2 class="panel-title">Despesas</h2>
-        <a class="btn-secondary" href="{% url 'rachais:add_expense' group.id %}">+ Adicionar</a>
+        {% else %}
+          <p class="empty-mini">{% icon "minus" %}Nenhum pagamento registrado ainda.</p>
+        {% endif %}
       </div>
+    </section>
 
+    <section class="card card-pad" aria-labelledby="expenses-title">
+      <div class="section-head">
+        <h2 class="sec-h" id="expenses-title">Despesas</h2>
+        <a class="btn btn-ghost btn-sm" href="{% url 'rachais:add_expense' group.id %}">{% icon "plus" 18 %}Adicionar</a>
+      </div>
       {% if expenses %}
-        <ul class="expense-list">
+        <ul class="list-box">
           {% for e in expenses %}
-            <li class="expense-item">
-              <div class="expense-main">
-                <div>
-                  <div class="expense-name">{{ e.description }}</div>
-                  <div class="expense-meta">Pago por {{ e.paid_by.display_name }}</div>
-                </div>
-                <div class="expense-side">
-                  <div class="expense-amount">R$ {{ e.amount|localize }}</div>
-                  {% if e.can_edit %}
-                    <div class="expense-actions">
-                      <a class="btn-tertiary" href="{% url 'rachais:edit_expense' group.id e.id %}">Editar</a>
-                      <form method="post" action="{% url 'rachais:delete_expense' group.id e.id %}" onsubmit="return confirm('Apagar a despesa &quot;{{ e.description }}&quot;? Essa ação não pode ser desfeita.');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-tertiary btn-danger">Apagar</button>
-                      </form>
-                    </div>
-                  {% endif %}
-                </div>
+            <li class="row" style="padding-right: 6px">
+              <span class="avatar av-{{ e.paid_by_id|tone }}">{{ e.paid_by.display_name|initials }}</span>
+              <div class="row-main">
+                <p class="row-title">{{ e.description }}</p>
+                <p class="row-meta">{{ e.paid_by.display_name }} pagou · {{ e.created_at|date:"d/m/Y" }}</p>
+                <p class="expense-split">
+                  {{ e.get_split_method_display }}{% if e.split_list %}:
+                    {% for s in e.split_list %}{{ s.name }} {{ s.amount|brl }}{% if not forloop.last %} · {% endif %}{% endfor %}
+                  {% else %} · ninguém para dividir ainda{% endif %}
+                </p>
               </div>
-              
-              <div class="expense-split">
-                {% if e.split_list %}
-                  <strong>{{ e.get_split_method_display }}:</strong> 
-                  {% for s in e.split_list %}
-                    {{ s.name }} deve R$ {{ s.amount|localize }}{% if not forloop.last %}; {% else %}.{% endif %}
-                  {% endfor %}
-                {% else %}
-                  <strong>{{ e.get_split_method_display }}:</strong> ninguém para dividir ainda.
-                {% endif %}
-              </div>
+              <span class="num" style="font-weight: 800; white-space: nowrap">{{ e.amount|brl }}</span>
+              {% if e.can_edit %}
+                <a class="icon-btn" href="{% url 'rachais:edit_expense' group.id e.id %}" aria-label="Editar {{ e.description }}">{% icon "edit" 18 %}</a>
+                <form method="post" action="{% url 'rachais:delete_expense' group.id e.id %}"
+                      data-confirm="Excluir despesa?"
+                      data-confirm-body="“{{ e.description }}” ({{ e.amount|brl }}) sai do grupo e os saldos são recalculados. Isso não dá para desfazer."
+                      data-confirm-ok="Excluir" data-confirm-tone="danger">
+                  {% csrf_token %}
+                  <button class="icon-btn del" type="submit" aria-label="Excluir {{ e.description }}">{% icon "trash" 18 %}</button>
+                </form>
+              {% endif %}
             </li>
           {% endfor %}
         </ul>
-        <div class="expense-total">
-          <span>Total do grupo:</span>
-          <strong>R$ {{ total|localize }}</strong>
-        </div>
       {% else %}
-        <p class="panel-empty">Nenhuma despesa adicionada.</p>
+        <p class="empty-mini">{% icon "receipt" %}Nenhuma despesa por aqui. Lance a primeira e o app faz a conta.</p>
       {% endif %}
-    </div>
-  </section>
-</div>
+    </section>
+  </div>
 
-{% include "rachais/_person_dialog.html" %}
-{% include "rachais/_copy_script.html" %}
+  <div class="group-col-side">
+    <section class="card card-pad balance-summary" aria-labelledby="balances-title">
+      <h2 class="sec-h" id="balances-title">Saldos</h2>
+      <ul class="balance-list">
+        {% for p in balance_rows %}
+          <li class="balance-item">
+            <span class="avatar av-{{ p.id|tone }}">{{ p.display_name|initials }}</span>
+            <div style="min-width: 0">
+              <p style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 700; font-size: 15px">
+                {% include "rachais/_person.html" with p=p sub=p.pix_sub tag=True %}
+                {% if p.user_id == user.id %}<span class="hint">(você)</span>{% endif %}
+                {% if p.is_guest %}<span class="pill pill-neutral" style="height: 22px; font-size: 11px">sem conta</span>{% endif %}
+              </p>
+              <div class="balance-bar" aria-hidden="true">
+                <span>{% if p.balance < 0 %}<i class="neg-bar" style="width: {{ p.bar }}%"></i>{% endif %}</span>
+                <span>{% if p.balance > 0 %}<i class="pos-bar" style="width: {{ p.bar }}%"></i>{% endif %}</span>
+              </div>
+            </div>
+            <div class="amount">
+              {% if p.balance > 0 %}<p class="num pos">{{ p.balance|brl_signed }}</p><p class="pos">a receber</p>
+              {% elif p.balance < 0 %}<p class="num neg">{{ p.balance|brl_signed }}</p><p class="neg">a pagar</p>
+              {% else %}<p class="num muted">R$ 0,00</p><p class="muted">em dia</p>{% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+      <p class="hint">Toque no nome de alguém para ver a chave Pix.</p>
+
+      {% if settlements %}
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <p class="eyebrow">Quem paga quem</p>
+          <ul class="transfer-list">
+            {% for s in settlements %}
+              <li class="transfer-item"><strong>{{ s.person_from.display_name }}</strong> paga <strong class="num">{{ s.amount|brl }}</strong> para <strong>{{ s.person_to.display_name }}</strong></li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      {% if can_manage and group.is_managed %}
+        <form class="add-person" method="post" action="{% url 'rachais:add_participant' group.id %}">
+          {% csrf_token %}
+          <label class="label" for="guest_name">Adicionar participante pelo nome</label>
+          <div class="inline-row">
+            <input class="input" id="guest_name" name="guest_name" type="text" maxlength="100" placeholder="Nome do amigo" required>
+            <button class="btn btn-secondary" type="submit" style="min-height: 48px">{% icon "user-plus" 18 %}Adicionar</button>
+          </div>
+        </form>
+      {% endif %}
+
+      {% if invite_url %}
+        <button class="btn btn-secondary invite-open" type="button" data-open-dialog="invite-dialog" aria-haspopup="dialog">{% icon "user-plus" 18 %}Chamar mais gente</button>
+        <dialog class="dlg invite-sheet" id="invite-dialog" aria-labelledby="invite-title">
+          <div class="dlg-head">
+            <span class="tile t-primary" style="width: 44px; height: 44px">{% icon "link" %}</span>
+            <div class="row-main">
+              <h3 class="dlg-title" id="invite-title">Chamar a galera</h3>
+              <p class="hint" style="margin-top: 4px; font-size: 14px">Quem abrir o link entra no grupo, com conta ou só com um nome.</p>
+            </div>
+            <button class="icon-btn invite-close" type="button" data-close-dialog aria-label="Fechar">{% icon "x" %}</button>
+          </div>
+          <div class="field">
+            <label class="eyebrow" for="invite_link">Link de convite</label>
+            <div class="inline-row">
+              <input class="input input-link" id="invite_link" type="text" value="{{ invite_url }}" readonly>
+              <button class="btn btn-secondary" type="button" data-copy-target="invite_link" style="min-height: 48px">{% icon "copy" 18 %}<span data-copy-label>Copiar</span></button>
+            </div>
+          </div>
+          <a class="btn btn-primary btn-lg" href="https://wa.me/?text={{ 'Bora rachar as contas do grupo "'|urlencode }}{{ group.name|urlencode }}{{ '" no RachAi? Entra por aqui: '|urlencode }}{{ invite_url|urlencode }}" target="_blank" rel="noopener">{% icon "message" %}Enviar no WhatsApp</a>
+          <div class="invite-regen">
+            <p class="hint">O link vazou? Gere outro e o atual para de funcionar.</p>
+            <form method="post" action="{% url 'rachais:regenerate_invite' group.id %}"
+                  data-confirm="Gerar um novo link?"
+                  data-confirm-body="Quem tiver o link atual não vai mais conseguir entrar no grupo."
+                  data-confirm-ok="Gerar novo link">
+              {% csrf_token %}
+              <button class="btn btn-ghost btn-sm" type="submit">{% icon "refresh" 18 %}Gerar novo</button>
+            </form>
+          </div>
+          <form class="add-person" method="post" action="{% url 'rachais:add_participant' group.id %}">
+            {% csrf_token %}
+            <label class="label" for="identifier">Ou adicione quem já tem conta</label>
+            <div class="inline-row">
+              <input class="input" id="identifier" name="identifier" type="text" autocomplete="off" placeholder="E-mail da pessoa" required>
+              <button class="btn btn-secondary" type="submit" style="min-height: 48px">Adicionar</button>
+            </div>
+          </form>
+        </dialog>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_dialogs %}
+  {% include "rachais/_person_dialog.html" %}
 {% endblock %}

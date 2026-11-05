@@ -1,0 +1,49 @@
+{% extends "rachais/base.html" %}
+{% load rachai %}
+{% comment %}
+  Telas de fora do app (login, cadastro, convite, acesso de convidado):
+  faixa azul com a marca + cartão. No desktop vira duas colunas, com a moeda 3D.
+  Blocos: hero_copy, hero_extra, stage_chips, heading, card.
+{% endcomment %}
+
+{% block body %}
+<div class="auth">
+  <section class="auth-hero">
+    <a class="brand" href="{% url 'rachais:group_list' %}" aria-label="RachAi, início">
+      {% include "rachais/_brand_mark.html" %}
+      <span class="brand-name">RachAi</span>
+    </a>
+
+    <div class="auth-stage" aria-hidden="true">
+      {% include "rachais/_coin3d.html" with size=260 %}
+      <svg class="twinkle" viewBox="0 0 16 16" style="left: 8%; top: 18px"><path d="M8 0c.6 4.4 3.6 7.4 8 8-4.4.6-7.4 3.6-8 8-.6-4.4-3.6-7.4-8-8 4.4-.6 7.4-3.6 8-8Z"/></svg>
+      <svg class="twinkle" viewBox="0 0 16 16" style="right: 6%; top: 70px; width: 22px; height: 22px"><path d="M8 0c.6 4.4 3.6 7.4 8 8-4.4.6-7.4 3.6-8 8-.6-4.4-3.6-7.4-8-8 4.4-.6 7.4-3.6 8-8Z"/></svg>
+      <svg class="twinkle" viewBox="0 0 16 16" style="right: 14%; bottom: 0; width: 12px; height: 12px"><path d="M8 0c.6 4.4 3.6 7.4 8 8-4.4.6-7.4 3.6-8 8-.6-4.4-3.6-7.4-8-8 4.4-.6 7.4-3.6 8-8Z"/></svg>
+      {% block stage_chips %}
+        <div class="glass-chip" style="left: 0; top: 34px"><span class="avatar av-2" style="width: 28px; height: 28px; font-size: 11px">AS</span>Ana paga <span class="num">R$ 45,00</span> para Bruno</div>
+        <div class="glass-chip b" style="right: 0; bottom: 30px">{% icon "check" 18 %}Churrasco quitado</div>
+      {% endblock %}
+    </div>
+
+    <div>
+      <div class="auth-copy">
+        <div>{% block hero_copy %}<h1>A conta chegou? Racha aí.</h1>{% endblock %}</div>
+        {% include "rachais/_coin3d.html" with size=120 %}
+      </div>
+      {% block hero_extra %}
+        <p class="auth-lead">Viagem, bar, churrasco ou república: o app faz a conta de quem deve quanto, sem planilha e sem guardanapo.</p>
+      {% endblock %}
+    </div>
+  </section>
+
+  <main class="auth-panel" id="conteudo">
+    <div>
+      <div class="auth-heading">{% block heading %}{% endblock %}</div>
+      <div class="auth-card">
+        {% include "rachais/_messages.html" %}
+        {% block card %}{% endblock %}
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

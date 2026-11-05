@@ -1,60 +1,36 @@
-{% extends "rachais/base.html" %}
-{% load static %}
+{% extends "rachais/auth_base.html" %}
+{% load rachai %}
 
 {% block title %}Entrar · RachAi{% endblock %}
-{% block body_class %}auth-body auth-body--login{% endblock %}
 
-{% block topbar_actions %}
-  <a class="top-link top-link--ghost" href="{% url 'accounts:signup' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">Cadastrar</a>
+{% block heading %}
+  <h2>Bem-vindo de volta</h2>
+  <p>Entre para ver quem deve quanto nos seus grupos.</p>
 {% endblock %}
 
-{% block content %}
-<div class="auth-shell">
-  <div class="auth-card auth-card--login">
-    <div class="auth-brand">
-      <img class="auth-logo" src="{% static 'rachai.png' %}" alt="Logotipo RachAi">
-      <span class="auth-brand-name">RachAi</span>
+{% block card %}
+  {% include "rachais/_auth_tabs.html" with active="login" %}
+
+  {% if invite_pending %}
+    <p class="notice notice-info">{% icon "users" %}<span>Você recebeu um convite para um grupo. Entre ou crie sua conta para participar.</span></p>
+  {% endif %}
+
+  <form method="post" class="auth-form">
+    {% csrf_token %}
+    {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
+
+    <div class="field">
+      <label class="label" for="email">E-mail</label>
+      <div class="with-icon">{% icon "mail" %}<input class="input" id="email" name="email" type="email" autocomplete="email" placeholder="voce@email.com" required></div>
     </div>
 
-    <h1 class="auth-title">Entrar na sua conta</h1>
-    {% if invite_pending %}
-      <p class="auth-subtitle">Você recebeu um convite para um grupo. Entre ou crie sua conta para participar.</p>
-    {% else %}
-      <p class="auth-subtitle">Acesse seus grupos e despesas</p>
-    {% endif %}
+    <div class="field">
+      <label class="label" for="password">Senha</label>
+      <div class="with-icon">{% icon "lock" %}<input class="input" id="password" name="password" type="password" autocomplete="current-password" required></div>
+    </div>
 
-    {% if messages %}
-      <div class="auth-messages">
-        {% for m in messages %}
-          <div class="auth-message {{ m.tags }}">{{ m }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
+    <button class="btn btn-primary btn-lg" type="submit" style="margin-top: 6px">Entrar</button>
+  </form>
 
-    <form method="post" class="auth-form">
-      {% csrf_token %}
-      {% if request.GET.next %}
-        <input type="hidden" name="next" value="{{ request.GET.next }}">
-      {% endif %}
-
-      <div class="field">
-        <label class="auth-label" for="email">Email</label>
-        <input class="auth-input" id="email" name="email" type="email" placeholder="exemplo@email.com" required>
-      </div>
-
-      <div class="field">
-        <label class="auth-label" for="password">Senha</label>
-        <input class="auth-input" id="password" name="password" type="password" placeholder="********" required>
-      </div>
-
-
-      <button class="auth-button primary" type="submit">Entrar</button>
-
-      <div class="auth-switch">
-        <span>Não tem conta?</span>
-        <a class="auth-switch-link" href="{% url 'accounts:signup' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">Cadastrar</a>
-      </div>
-    </form>
-  </div>
-</div>
+  <p class="auth-switch">Primeira vez por aqui? <a href="{% url 'accounts:signup' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">Crie sua conta</a></p>
 {% endblock %}

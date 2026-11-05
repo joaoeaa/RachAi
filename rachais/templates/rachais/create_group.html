@@ -1,69 +1,70 @@
-{% extends "rachais/base.html" %}
+{% extends "rachais/app_base.html" %}
+{% load rachai %}
+
+{% block title %}Novo grupo · RachAi{% endblock %}
+{% block page_class %}page-narrow{% endblock %}
+
+{% block mobile_header %}
+  <header class="m-top glass">
+    <div class="m-top-row">
+      <a class="icon-btn" href="{% url 'rachais:group_list' %}" aria-label="Cancelar e voltar">{% icon "x" %}</a>
+      <div class="m-top-title"><p class="m-top-name">Novo grupo</p></div>
+    </div>
+  </header>
+{% endblock %}
 
 {% block content %}
-<div class="dashboard-shell">
-  <aside class="dashboard-sidebar">
-    <div class="sidebar-card">
-      <div class="sidebar-title">Seus Grupos</div>
-      <a class="sidebar-action" href="{% url 'rachais:create_group' %}">+ Criar Novo Grupo</a>
-      <div class="sidebar-groups">
-        {% if groups %}
-          {% for g in groups %}
-            <a class="sidebar-link" href="{% url 'rachais:group_detail' g.id %}">{{ g.name }}</a>
-          {% endfor %}
-        {% else %}
-          <span class="sidebar-empty">Você ainda não participa de nenhum grupo.</span>
-        {% endif %}
-      </div>
+<form method="post" class="form-page create-form">
+  {% csrf_token %}
+  <div class="form-head">
+    <div>
+      <h1>Bora juntar a galera?</h1>
+      <p>Dê um nome e escolha como as despesas vão ser lançadas.</p>
     </div>
-  </aside>
+  </div>
 
-  <section class="dashboard-main">
-    {% if messages %}
-      <div class="flash-stack">
-        {% for m in messages %}
-          <div class="flash flash-{{ m.tags|default:'info' }}">{{ m }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
-
-    <div class="panel">
-      <div class="panel-header">
-        <div>
-          <h1 class="panel-title">Criar novo grupo</h1>
-          <p class="panel-subtitle">Defina um nome, o tipo do grupo e convide seus participantes.</p>
-        </div>
-      </div>
-      <form method="post" class="form-stack">
-        {% csrf_token %}
-        <label class="form-label" for="name">Nome do grupo</label>
-        <input class="form-input" id="name" name="name" type="text" maxlength="100" placeholder="Ex.: Viagem para a Praia" value="{{ name|default:'' }}" required>
-
-        <span class="form-label">Tipo do grupo</span>
-        <p class="form-hint">O tipo não pode ser alterado depois que o grupo é criado.</p>
-        <div class="mode-options">
-          <label class="mode-option">
-            <input type="radio" name="mode" value="SHARED" {% if mode != 'MANAGED' %}checked{% endif %}>
-            <span>
-              <strong>Colaborativo</strong>
-              <small>Cada participante entra com a própria conta e registra os gastos dele.</small>
-            </span>
-          </label>
-          <label class="mode-option">
-            <input type="radio" name="mode" value="MANAGED" {% if mode == 'MANAGED' %}checked{% endif %}>
-            <span>
-              <strong>Gerenciado por mim</strong>
-              <small>Você cadastra os nomes e os gastos de todo mundo. Ninguém mais precisa ter conta no RachAí.</small>
-            </span>
-          </label>
-        </div>
-
-        <div class="form-actions">
-          <a class="btn-secondary" href="{% url 'rachais:group_list' %}">Cancelar</a>
-          <button class="btn-primary" type="submit">Criar</button>
-        </div>
-      </form>
+  <div class="field">
+    <label class="label" for="name">Nome do grupo</label>
+    <input class="input" id="name" name="name" type="text" maxlength="100" placeholder="Ex.: Viagem pra Noronha" value="{{ name|default:'' }}" style="min-height: 52px; font-size: 17px; font-weight: 600" required>
+    <div class="sugg-row" aria-label="Sugestões de nome">
+      <button class="sugg" type="button" data-fill-target="name">Viagem</button>
+      <button class="sugg" type="button" data-fill-target="name">Churrasco</button>
+      <button class="sugg" type="button" data-fill-target="name">República</button>
+      <button class="sugg" type="button" data-fill-target="name">Casa de praia</button>
     </div>
-  </section>
-</div>
+  </div>
+
+  <fieldset>
+    <legend class="label">Como vocês vão usar?</legend>
+    <div class="type-list">
+      <label class="type-card">
+        <input type="radio" name="mode" value="SHARED" {% if mode != 'MANAGED' %}checked{% endif %}>
+        <span class="tile t-1">{% icon "users" 24 %}</span>
+        <span style="flex: 1">
+          <strong>Colaborativo</strong>
+          <small>Cada um entra com a própria conta (ou só com um nome), lança os gastos e paga o que deve.</small>
+        </span>
+        <span class="radio-dot">{% icon "check" 14 %}</span>
+      </label>
+      <label class="type-card">
+        <input type="radio" name="mode" value="MANAGED" {% if mode == 'MANAGED' %}checked{% endif %}>
+        <span class="tile t-2">{% icon "clipboard" 24 %}</span>
+        <span style="flex: 1">
+          <strong>Gerenciado por mim</strong>
+          <small>Só você cadastra os nomes e lança tudo. Os amigos não precisam de conta.</small>
+        </span>
+        <span class="radio-dot">{% icon "check" 14 %}</span>
+      </label>
+    </div>
+    <p class="hint" style="margin-top: 10px">O tipo não pode ser alterado depois que o grupo é criado.</p>
+  </fieldset>
+
+  <p class="type-hint hint-shared">{% icon "info" %}<span>Depois de criar, mande o link de convite para a galera. Dá para entrar com conta ou só com um nome.</span></p>
+  <p class="type-hint hint-managed">{% icon "info" %}<span>Depois de criar, é só digitar o nome de cada amigo. Você registra os acertos entre eles.</span></p>
+
+  <div class="form-actions glass">
+    <a class="btn btn-secondary" href="{% url 'rachais:group_list' %}">Cancelar</a>
+    <button class="btn btn-primary" type="submit">Criar grupo</button>
+  </div>
+</form>
 {% endblock %}

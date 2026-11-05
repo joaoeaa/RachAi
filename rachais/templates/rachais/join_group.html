@@ -1,68 +1,82 @@
-{% extends "rachais/base.html" %}
-{% load static %}
+{% extends "rachais/auth_base.html" %}
+{% load rachai %}
 
 {% block title %}Convite · RachAi{% endblock %}
-{% block body_class %}auth-body{% endblock %}
 
-{% block content %}
-<div class="auth-shell">
-  <div class="auth-card">
-    <div class="auth-brand">
-      <img class="auth-logo" src="{% static 'rachai.png' %}" alt="Logotipo RachAi">
-      <span class="auth-brand-name">RachAi</span>
+{% block stage_chips %}
+  {% if not invalid %}
+    <div class="glass-chip" style="left: 0; top: 34px">{% icon "users" 18 %}{{ participant_count }} pessoa{{ participant_count|pluralize }} no grupo</div>
+    <div class="glass-chip b" style="right: 0; bottom: 30px">{% icon "link" 18 %}Convite de {{ creator_name }}</div>
+  {% endif %}
+{% endblock %}
+
+{% block hero_copy %}
+  {% if invalid %}
+    <h1>Esse convite não vale mais</h1>
+  {% else %}
+    <p class="kicker">{{ creator_name }} te chamou para rachar as contas de</p>
+    <h1>{{ group.name }}</h1>
+  {% endif %}
+{% endblock %}
+
+{% block hero_extra %}
+  {% if invalid %}
+    <p class="auth-lead">Acontece quando quem criou o grupo gera um link novo.</p>
+  {% else %}
+    <div class="auth-people">
+      <span class="avatar-stack">
+        {% for p in preview %}<span class="avatar av-{{ p.id|tone }}">{{ p.display_name|initials }}</span>{% endfor %}
+      </span>
+      <p>{{ participant_count }} pessoa{{ participant_count|pluralize }} já {{ participant_count|pluralize:"está,estão" }} no grupo</p>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block heading %}
+  {% if invalid %}
+    <h2>Peça um link novo</h2>
+    <p>Quem te chamou consegue mandar o link atual em poucos segundos.</p>
+  {% else %}
+    <h2>Você foi convidado(a)!</h2>
+    <p>Entre no grupo e veja na hora quanto cada um deve.</p>
+  {% endif %}
+{% endblock %}
+
+{% block card %}
+  {% if invalid %}
+    <span class="tile t-neg">{% icon "link-off" 26 %}</span>
+    <h2 class="dlg-title">Convite inválido</h2>
+    <p class="dlg-body">O convite que você abriu foi trocado ou não existe. Peça o link atual para quem te chamou.</p>
+    <a class="btn btn-secondary btn-lg" href="{% url 'rachais:group_list' %}">Ir para o RachAi</a>
+
+  {% elif user.is_authenticated %}
+    <div class="who-box">
+      <span class="avatar avatar-lg av-{{ user.id|tone }}">{{ user.get_short_name|default:user.username|initials }}</span>
+      <div class="row-main"><p class="hint" style="font-weight: 600">Você vai entrar como</p><p style="font-size: 16px; font-weight: 800">{{ user.get_short_name|default:user.username }}</p></div>
+    </div>
+    <form method="post" class="auth-form">
+      {% csrf_token %}
+      <button class="btn btn-primary btn-lg" type="submit">Entrar no grupo</button>
+    </form>
+    <div class="section-head">
+      <a class="btn btn-ghost" href="{% url 'rachais:group_list' %}">Agora não</a>
+      {% if not request.session.is_guest %}<a href="{% url 'accounts:logout' %}" style="font-size: 14px">Não é você? Trocar de conta</a>{% endif %}
     </div>
 
-    {% if invalid %}
-      <h1 class="auth-title">Convite inválido</h1>
-      <p class="auth-subtitle">Este link não existe mais ou foi trocado pelo criador do grupo. Peça um link novo para quem te convidou.</p>
-      <a class="auth-button primary join-button" href="{% url 'rachais:group_list' %}">Ir para o RachAi</a>
-    {% else %}
-      <h1 class="auth-title">Você foi convidado(a)!</h1>
-      <p class="auth-subtitle">
-        <strong>{{ creator_name }}</strong> te chamou para rachar as contas do grupo
-        <strong>{{ group.name }}</strong>.
-      </p>
-      <p class="join-meta">
-        {{ participant_count }} participante{{ participant_count|pluralize }} no grupo
-      </p>
-
-      {% if messages %}
-        <div class="auth-messages">
-          {% for m in messages %}
-            <div class="auth-message {{ m.tags }}">{{ m }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
-
-      {% if user.is_authenticated %}
-        <form method="post" class="auth-form">
-          {% csrf_token %}
-          <button class="auth-button primary" type="submit">Entrar no grupo como {{ user.get_short_name|default:user.username }}</button>
-          <div class="auth-switch">
-            <a class="auth-switch-link" href="{% url 'rachais:group_list' %}">Agora não</a>
-          </div>
-        </form>
-      {% else %}
-        <form method="post" class="auth-form">
-          {% csrf_token %}
-          <div class="field">
-            <label class="auth-label" for="guest_name">Entrar só com um nome</label>
-            <input class="auth-input" id="guest_name" name="guest_name" type="text"
-                   maxlength="{{ guest_name_max }}" placeholder="Como o grupo te chama?"
-                   value="{{ guest_name }}" autocomplete="nickname" required>
-          </div>
-          <button class="auth-button primary" type="submit">Entrar no grupo</button>
-          <p class="join-hint">Sem e-mail nem senha. Dá para criar sua conta depois, sem perder nada.</p>
-        </form>
-
-        <div class="join-divider"><span>ou</span></div>
-
-        <div class="join-account">
-          <a class="btn-secondary" href="{% url 'accounts:signup' %}?next={{ request.path|urlencode }}">Criar conta</a>
-          <a class="btn-secondary" href="{% url 'accounts:login' %}?next={{ request.path|urlencode }}">Já tenho conta</a>
-        </div>
-      {% endif %}
-    {% endif %}
-  </div>
-</div>
+  {% else %}
+    <form method="post" class="auth-form" novalidate>
+      {% csrf_token %}
+      <div class="field">
+        <label class="label" for="guest_name">Entrar só com um nome</label>
+        <div class="with-icon">{% icon "user" %}<input class="input" id="guest_name" name="guest_name" type="text" maxlength="{{ guest_name_max }}" autocomplete="nickname" placeholder="Como a galera te chama?" value="{{ guest_name }}" required></div>
+      </div>
+      <button class="btn btn-primary btn-lg" type="submit">Entrar no grupo</button>
+      <p class="hint" style="text-align: center">Sem e-mail nem senha. Dá para criar sua conta depois, sem perder nada.</p>
+    </form>
+    <p class="divider">ou</p>
+    <div class="pair">
+      <a class="btn btn-secondary btn-lg" href="{% url 'accounts:signup' %}?next={{ request.path|urlencode }}">Criar conta</a>
+      <a class="btn btn-secondary btn-lg" href="{% url 'accounts:login' %}?next={{ request.path|urlencode }}">Já tenho conta</a>
+    </div>
+  {% endif %}
 {% endblock %}

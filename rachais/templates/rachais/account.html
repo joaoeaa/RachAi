@@ -1,88 +1,94 @@
-{% extends "rachais/base.html" %}
-{% load static %}
+{% extends "rachais/app_base.html" %}
+{% load rachai %}
 
 {% block title %}Minha conta · RachAi{% endblock %}
-{% block body_class %}auth-body{% endblock %}
+{% block page_class %}page-narrow{% endblock %}
+{% block nav_groups_on %}{% endblock %}
+{% block nav_account_on %} on{% endblock %}
+
+{% block mobile_header %}
+  <header class="m-top glass">
+    <div class="m-top-row">
+      <a class="icon-btn" href="{% url 'rachais:group_list' %}" aria-label="Voltar para seus grupos">{% icon "back" %}</a>
+      <div class="m-top-title"><h1>Minha conta</h1></div>
+    </div>
+  </header>
+{% endblock %}
 
 {% block content %}
-<div class="auth-shell">
-  <div class="auth-card account-card">
-    <h1 class="auth-title">Minha conta</h1>
-    <p class="auth-subtitle">
-      {% if profile.is_guest %}
-        Você entrou como convidado(a), só com um nome.
-      {% else %}
-        {{ user.email }}
-      {% endif %}
-    </p>
-
-    {% if messages %}
-      <div class="auth-messages">
-        {% for m in messages %}
-          <div class="auth-message {{ m.tags }}">{{ m }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
-
-    <form method="post" class="auth-form">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="profile">
-
-      <div class="field">
-        <label class="auth-label" for="first_name">Nome</label>
-        <input class="auth-input" id="first_name" name="first_name" type="text" maxlength="60" value="{{ user.first_name }}" required>
-      </div>
-
-      <div class="field">
-        <label class="auth-label" for="pix_key">Chave Pix <small class="auth-optional">(opcional)</small></label>
-        <input class="auth-input" id="pix_key" name="pix_key" type="text" maxlength="77" value="{{ profile.pix_key }}" placeholder="Celular, e-mail ou chave aleatória" autocomplete="off">
-        <p class="auth-hint">Quem participa dos seus grupos vê essa chave ao clicar no seu nome, para te pagar. Prefira chave aleatória, e-mail ou celular a usar o CPF.</p>
-      </div>
-
-      <button class="auth-button primary" type="submit">Salvar</button>
-    </form>
-
+<section class="profile-head" aria-label="Perfil">
+  <span class="avatar avatar-xl av-{{ user.id|tone }}">{{ user.get_short_name|default:user.username|initials }}</span>
+  <div class="row-main">
+    <p class="name">{{ user.get_short_name|default:user.username }}</p>
     {% if profile.is_guest %}
-      {% if access_url %}
-        <div class="account-section">
-          <h2 class="account-section-title">Seu link pessoal de acesso</h2>
-          <p class="auth-hint">Você não tem senha: é este link que te leva de volta aos seus grupos em outro celular ou navegador. Guarde num lugar seguro e não compartilhe.</p>
-          <div class="invite-row">
-            <label class="sr-only" for="access_link">Link pessoal de acesso</label>
-            <input class="inline-input invite-input" id="access_link" type="text" value="{{ access_url }}" readonly onfocus="this.select()">
-            <button class="btn-secondary" type="button" data-copy-target="access_link">Copiar link</button>
-          </div>
-        </div>
-      {% endif %}
-
-      <form method="post" class="auth-form account-section">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="finish">
-        <h2 class="account-section-title">Completar cadastro</h2>
-        <p class="auth-hint">Com e-mail e senha você entra de qualquer lugar. Seus grupos e despesas continuam todos aqui.</p>
-
-        <div class="field">
-          <label class="auth-label" for="email">Email</label>
-          <input class="auth-input" id="email" name="email" type="email" placeholder="exemplo@email.com" required>
-        </div>
-        <div class="field">
-          <label class="auth-label" for="password">Senha</label>
-          <input class="auth-input" id="password" name="password" type="password" placeholder="********" minlength="8" required>
-        </div>
-        <div class="field">
-          <label class="auth-label" for="confirm_password">Confirmar senha</label>
-          <input class="auth-input" id="confirm_password" name="confirm_password" type="password" placeholder="********" minlength="8" required>
-        </div>
-
-        <button class="auth-button primary" type="submit">Completar cadastro</button>
-      </form>
+      <span class="pill pill-warn">{% icon "user" 15 %}Convidado · sem cadastro</span>
+    {% else %}
+      <p class="sub">{{ user.email }}</p>
     {% endif %}
-
-    <div class="auth-switch">
-      <a class="auth-switch-link" href="{% url 'rachais:group_list' %}">Voltar para meus grupos</a>
-    </div>
   </div>
-</div>
+</section>
 
-{% include "rachais/_copy_script.html" %}
+{% if profile.is_guest %}
+  <p class="notice notice-warn" role="status">{% icon "warn" %}<span>Você entrou só com um nome. Sem cadastro, só dá para voltar pelo seu link pessoal.</span></p>
+{% endif %}
+
+<form method="post" class="card card-pad">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="profile">
+  <h2 class="sec-h">Seus dados</h2>
+  <div class="field">
+    <label class="label" for="first_name">Nome</label>
+    <div class="with-icon">{% icon "user" %}<input class="input" id="first_name" name="first_name" type="text" maxlength="60" autocomplete="name" value="{{ user.first_name }}" required></div>
+  </div>
+  <div class="field">
+    <label class="label" for="pix_key">Chave Pix <small>(opcional)</small></label>
+    <div class="with-icon">{% icon "key" %}<input class="input" id="pix_key" name="pix_key" type="text" maxlength="77" autocomplete="off" value="{{ profile.pix_key }}" placeholder="Celular, e-mail ou chave aleatória" aria-describedby="pix-hint"></div>
+    <p class="hint" id="pix-hint">Quem está nos seus grupos vê essa chave ao tocar no seu nome. Prefira chave aleatória, e-mail ou celular em vez do CPF.</p>
+  </div>
+  <button class="btn btn-primary btn-lg" type="submit">Salvar</button>
+</form>
+
+{% if profile.is_guest %}
+  {% if access_url %}
+  <section class="card card-pad" aria-labelledby="access-title">
+    <div class="dlg-head">
+      <span class="tile t-primary" style="width: 40px; height: 40px; border-radius: 12px">{% icon "link" %}</span>
+      <div class="row-main">
+        <h2 class="sec-h" id="access-title">Seu link pessoal de acesso</h2>
+        <p class="hint" style="margin-top: 4px">É ele que te leva de volta aos seus grupos em outro celular ou navegador. Guarde num lugar seguro e não compartilhe.</p>
+      </div>
+    </div>
+    <div class="inline-row">
+      <label class="sr-only" for="access_link">Link pessoal de acesso</label>
+      <input class="input input-link" id="access_link" type="text" value="{{ access_url }}" readonly>
+      <button class="btn btn-secondary" type="button" data-copy-target="access_link" style="min-height: 48px">{% icon "copy" 18 %}<span data-copy-label>Copiar</span></button>
+    </div>
+  </section>
+  {% endif %}
+
+  <form method="post" class="card card-pad" aria-labelledby="finish-title">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="finish">
+    <div>
+      <h2 class="sec-h" id="finish-title">Completar cadastro</h2>
+      <p class="hint" style="margin-top: 4px">Com e-mail e senha você entra de qualquer lugar. Seus grupos e despesas continuam todos aqui.</p>
+    </div>
+    <div class="field">
+      <label class="label" for="email">E-mail</label>
+      <div class="with-icon">{% icon "mail" %}<input class="input" id="email" name="email" type="email" autocomplete="email" placeholder="voce@email.com" required></div>
+    </div>
+    <div class="field">
+      <label class="label" for="password">Senha</label>
+      <div class="with-icon">{% icon "lock" %}<input class="input" id="password" name="password" type="password" autocomplete="new-password" minlength="8" aria-describedby="password-hint" required></div>
+      <span class="hint" id="password-hint">Pelo menos 8 caracteres.</span>
+    </div>
+    <div class="field">
+      <label class="label" for="confirm_password">Confirme a senha</label>
+      <div class="with-icon">{% icon "lock" %}<input class="input" id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" required></div>
+    </div>
+    <button class="btn btn-primary btn-lg" type="submit">Completar cadastro</button>
+  </form>
+{% endif %}
+
+{% include "rachais/_logout_link.html" with cls="btn btn-danger-ghost btn-lg" %}
 {% endblock %}
