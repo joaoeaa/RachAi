@@ -1490,3 +1490,393 @@ class PixKeyTests(TestCase):
         group = Group.objects.create(name="G", creator=user)
         self.assertEqual(Participant.objects.create(group=group, user=user).pix_key, "")
         self.assertEqual(Participant.objects.create(group=group, guest_name="Avulso").pix_key, "")
+
+
+class GroupManagementTests(TestCase):
+    """Dono apaga o grupo, remove participantes e escolhe quem entra na divisão igual."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username='dono', first_name='Dono',
+            email='dono@teste.com', password='senhaSuperF0rte'
+        )
+        self.outro = User.objects.create_user(
+            username='outro', first_name='Outro',
+            email='outro@teste.com', password='senhaSuperF0rte'
+        )
+        self.client.force_login(self.owner)
+        self.client.post(
+            reverse('rachais:create_group'),
+            {'name': 'Quinta', 'mode': Group.MODE_MANAGED},
+        )
+        self.group = Group.objects.get(name='Quinta')
+        for nome in ('Ana', 'Bia', 'Caio'):
+            self.client.post(
+                reverse('rachais:add_participant', args=[self.group.id]),
+                {'guest_name': nome},
+            )
+        self.owner_p = self.group.participants.get(user=self.owner)
+        self.ana = self.group.participants.get(guest_name='Ana')
+        self.bia = self.group.participants.get(guest_name='Bia')
+        self.caio = self.group.participants.get(guest_name='Caio')
+
+    def _add_expense(self, amount, include=None, payer=None):
+        data = {
+            'description': 'Conta',
+            'amount': amount,
+            'paid_by': (payer or self.owner_p).id,
+            'split_method': 'EQUAL',
+        }
+        if include is not None:
+            data['split_select'] = '1'
+            data['split_include'] = [p.id for p in include]
+        return self.client.post(reverse('rachais:add_expense', args=[self.group.id]), data)
+
+    # --- divisão igual com caixinhas ---
+    def test_divisao_igual_so_entre_os_marcados(self):
+        self._add_expense('90,00', include=[self.owner_p, self.ana, self.bia])
+        splits = {s.participant_id: s.amount_owed for s in ExpenseSplit.objects.all()}
+        self.assertEqual(splits, {
+            self.owner_p.id: Decimal('30.00'),
+            self.ana.id: Decimal('30.00'),
+            self.bia.id: Decimal('30.00'),
+        })
+
+    def test_divisao_igual_sem_ninguem_marcado_e_recusada(self):
+        resp = self._add_expense('90,00', include=[])
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Escolha pelo menos uma pessoa')
+        self.assertFalse(Expense.objects.exists())
+
+    def test_divisao_igual_sem_caixinhas_inclui_todos(self):
+        self._add_expense('100,00')
+        self.assertEqual(ExpenseSplit.objects.count(), 4)
+
+    def test_edicao_mantem_caixinhas_marcadas(self):
+        self._add_expense('90,00', include=[self.owner_p, self.ana, self.bia])
+        expense = Expense.objects.get()
+        resp = self.client.get(reverse('rachais:edit_expense', args=[self.group.id, expense.id]))
+        caio = next(p for p in resp.context['participants'] if p.id == self.caio.id)
+        ana = next(p for p in resp.context['participants'] if p.id == self.ana.id)
+        self.assertFalse(caio.split_in)
+        self.assertTrue(ana.split_in)
+
+    def test_resumo_da_despesa_mostra_quem_dividiu(self):
+        self._add_expense('90,00', include=[self.owner_p, self.ana, self.bia])
+        resp = self.client.get(reverse('rachais:group_detail', args=[self.group.id]))
+        self.assertContains(resp, 'Dividido igualmente entre Dono, Ana e Bia · R$\u00a030,00 cada')
+
+    # --- apagar grupo ---
+    def test_dono_apaga_grupo(self):
+        self._add_expense('90,00')
+        resp = self.client.post(reverse('rachais:delete_group', args=[self.group.id]))
+        self.assertRedirects(resp, reverse('rachais:group_list'), fetch_redirect_response=False)
+        self.assertFalse(Group.objects.filter(pk=self.group.pk).exists())
+        self.assertFalse(Expense.objects.exists())
+        self.assertFalse(Participant.objects.exists())
+
+    def test_participante_nao_apaga_grupo(self):
+        Participant.objects.create(group=self.group, user=self.outro)
+        self.client.force_login(self.outro)
+        self.client.post(reverse('rachais:delete_group', args=[self.group.id]))
+        self.assertTrue(Group.objects.filter(pk=self.group.pk).exists())
+
+    def test_apagar_grupo_exige_post(self):
+        resp = self.client.get(reverse('rachais:delete_group', args=[self.group.id]))
+        self.assertEqual(resp.status_code, 405)
+        self.assertTrue(Group.objects.filter(pk=self.group.pk).exists())
+
+    # --- remover participante ---
+    def _remove(self, participant):
+        return self.client.post(
+            reverse('rachais:remove_participant', args=[self.group.id, participant.id]),
+            follow=True,
+        )
+
+    def test_remove_participante_sem_historico_apaga_de_vez(self):
+        self._remove(self.caio)
+        self.assertFalse(Participant.objects.filter(pk=self.caio.pk).exists())
+
+    def test_nao_remove_quem_tem_saldo(self):
+        self._add_expense('90,00', include=[self.owner_p, self.ana, self.bia])
+        resp = self._remove(self.ana)
+        self.assertContains(resp, 'Registre os acertos antes de remover')
+        self.ana.refresh_from_db()
+        self.assertIsNone(self.ana.left_at)
+
+    def test_remove_quem_acertou_mantem_historico_e_saldos(self):
+        self._add_expense('90,00', include=[self.owner_p, self.ana, self.bia])
+        Payment.objects.create(
+            group=self.group, payer=self.ana, receiver=self.owner_p,
+            amount=Decimal('30.00'), created_by=self.owner,
+        )
+        self._remove(self.ana)
+
+        self.ana.refresh_from_db()
+        self.assertIsNotNone(self.ana.left_at)
+        self.assertEqual(ExpenseSplit.objects.count(), 3)
+        balances = _calculate_balances(self.group)
+        self.assertEqual(balances[self.owner_p.id], Decimal('30.00'))
+        self.assertEqual(balances[self.bia.id], Decimal('-30.00'))
+
+        resp = self.client.get(reverse('rachais:group_detail', args=[self.group.id]))
+        self.assertNotIn(self.ana.id, [p.id for p in resp.context['participants']])
+        add = self.client.get(reverse('rachais:add_expense', args=[self.group.id]))
+        self.assertNotIn(self.ana.id, [p.id for p in add.context['participants']])
+
+    def test_nao_remove_o_dono(self):
+        self._remove(self.owner_p)
+        self.owner_p.refresh_from_db()
+        self.assertIsNone(self.owner_p.left_at)
+
+    def test_participante_comum_nao_remove_ninguem(self):
+        Participant.objects.create(group=self.group, user=self.outro)
+        self.client.force_login(self.outro)
+        self._remove(self.caio)
+        self.assertTrue(Participant.objects.filter(pk=self.caio.pk).exists())
+
+    def test_usuario_removido_perde_acesso_ao_grupo(self):
+        outro_p = Participant.objects.create(group=self.group, user=self.outro)
+        self._add_expense('10,00', include=[self.owner_p], payer=outro_p)
+        Payment.objects.create(
+            group=self.group, payer=self.owner_p, receiver=outro_p,
+            amount=Decimal('10.00'), created_by=self.owner,
+        )
+        self._remove(outro_p)
+        outro_p.refresh_from_db()
+        self.assertIsNotNone(outro_p.left_at)
+
+        self.client.force_login(self.outro)
+        resp = self.client.get(reverse('rachais:group_detail', args=[self.group.id]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_readicionar_pelo_nome_reativa(self):
+        self._add_expense('90,00', include=[self.owner_p, self.ana, self.bia])
+        Payment.objects.create(
+            group=self.group, payer=self.ana, receiver=self.owner_p,
+            amount=Decimal('30.00'), created_by=self.owner,
+        )
+        self._remove(self.ana)
+        self.client.post(
+            reverse('rachais:add_participant', args=[self.group.id]),
+            {'guest_name': 'ana'},
+        )
+        self.ana.refresh_from_db()
+        self.assertIsNone(self.ana.left_at)
+        self.assertEqual(self.group.participants.filter(guest_name__iexact='ana').count(), 1)
+
+
+class ShareLinkTests(TestCase):
+    """Link só para ver de grupos gerenciados: abre sem login e não altera nada."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username='dono', first_name='Dono',
+            email='dono@teste.com', password='senhaSuperF0rte'
+        )
+        self.client.force_login(self.owner)
+        self.client.post(
+            reverse('rachais:create_group'),
+            {'name': 'Quinta', 'mode': Group.MODE_MANAGED},
+        )
+        self.group = Group.objects.get(name='Quinta')
+        self.client.post(
+            reverse('rachais:add_participant', args=[self.group.id]),
+            {'guest_name': 'Ana'},
+        )
+        self.owner_p = self.group.participants.get(user=self.owner)
+        self.client.post(reverse('rachais:add_expense', args=[self.group.id]), {
+            'description': 'Pizza', 'amount': '80,00',
+            'paid_by': self.owner_p.id, 'split_method': 'EQUAL',
+        })
+
+    def _share_url(self):
+        self.client.get(reverse('rachais:group_detail', args=[self.group.id]))
+        self.group.refresh_from_db()
+        return reverse('rachais:shared_group', args=[self.group.share_token])
+
+    def test_dono_ve_o_link_no_grupo_gerenciado(self):
+        resp = self.client.get(reverse('rachais:group_detail', args=[self.group.id]))
+        self.group.refresh_from_db()
+        self.assertTrue(self.group.share_token)
+        self.assertContains(resp, f"/ver/{self.group.share_token}/")
+
+    def test_link_abre_sem_login_e_sem_formularios(self):
+        url = self._share_url()
+        self.client.logout()
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Pizza')
+        self.assertContains(resp, 'Ana')
+        self.assertContains(resp, 'R$ 40,00')
+        self.assertNotContains(resp, '<form')
+        self.assertNotContains(resp, 'csrfmiddlewaretoken')
+        self.assertEqual(resp['X-Robots-Tag'], 'noindex, nofollow')
+
+    def test_link_invalido_da_404(self):
+        self.client.logout()
+        resp = self.client.get(reverse('rachais:shared_group', args=['nao-existe']))
+        self.assertEqual(resp.status_code, 404)
+        self.assertContains(resp, 'não abre mais', status_code=404)
+
+    def test_gerar_novo_link_derruba_o_antigo(self):
+        old_url = self._share_url()
+        self.client.post(reverse('rachais:regenerate_share', args=[self.group.id]))
+        self.group.refresh_from_db()
+        self.assertEqual(self.client.get(old_url).status_code, 404)
+        new_url = reverse('rachais:shared_group', args=[self.group.share_token])
+        self.assertEqual(self.client.get(new_url).status_code, 200)
+
+    def test_so_o_dono_gera_novo_link(self):
+        self._share_url()
+        token = self.group.share_token
+        outro = User.objects.create_user(username='outro', password='senhaSuperF0rte')
+        Participant.objects.create(group=self.group, user=outro)
+        self.client.force_login(outro)
+        self.client.post(reverse('rachais:regenerate_share', args=[self.group.id]))
+        self.group.refresh_from_db()
+        self.assertEqual(self.group.share_token, token)
+
+    def test_grupo_colaborativo_nao_ganha_link_de_visualizacao(self):
+        self.client.post(
+            reverse('rachais:create_group'),
+            {'name': 'Rep', 'mode': Group.MODE_SHARED},
+        )
+        rep = Group.objects.get(name='Rep')
+        self.client.get(reverse('rachais:group_detail', args=[rep.id]))
+        rep.refresh_from_db()
+        self.assertIsNone(rep.share_token)
+
+
+class MultiPayerTests(TestCase):
+    """Despesa paga por duas ou mais pessoas, cada uma com a sua parte."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username='dono', first_name='Dono',
+            email='dono@teste.com', password='senhaSuperF0rte'
+        )
+        self.client.force_login(self.owner)
+        self.client.post(
+            reverse('rachais:create_group'),
+            {'name': 'Bar', 'mode': Group.MODE_MANAGED},
+        )
+        self.group = Group.objects.get(name='Bar')
+        for nome in ('Ana', 'Bia'):
+            self.client.post(
+                reverse('rachais:add_participant', args=[self.group.id]),
+                {'guest_name': nome},
+            )
+        self.dono = self.group.participants.get(user=self.owner)
+        self.ana = self.group.participants.get(guest_name='Ana')
+        self.bia = self.group.participants.get(guest_name='Bia')
+
+    def _post(self, url=None, **extra):
+        data = {
+            'description': 'Rodada', 'amount': '100,00',
+            'multi_payer': '1', 'pay_method': 'EQUAL', 'payer_select': '1',
+            'split_method': 'EQUAL',
+        }
+        data.update(extra)
+        return self.client.post(url or reverse('rachais:add_expense', args=[self.group.id]), data)
+
+    def test_dois_pagaram_igual_e_todos_dividem(self):
+        self._post(payer_include=[self.dono.id, self.ana.id])
+        expense = Expense.objects.get()
+        pagos = {p.participant_id: p.amount_paid for p in expense.payers.all()}
+        self.assertEqual(pagos, {self.dono.id: Decimal('50.00'), self.ana.id: Decimal('50.00')})
+
+        balances = _calculate_balances(self.group)
+        self.assertEqual(sum(balances.values()), Decimal('0'))
+        self.assertEqual(balances[self.bia.id], Decimal('-33.33'))
+        self.assertEqual(balances[self.dono.id] + balances[self.ana.id], Decimal('33.33'))
+
+    def test_pagaram_valores_diferentes(self):
+        self._post(
+            pay_method='UNEQUAL_VALUE',
+            **{f'pay_user_{self.dono.id}': '70,00', f'pay_user_{self.ana.id}': '30,00'},
+            split_select='1', split_include=[self.dono.id, self.ana.id],
+        )
+        expense = Expense.objects.get()
+        self.assertEqual(expense.paid_by_id, self.dono.id)
+        self.assertEqual(expense.pay_split_method, 'UNEQUAL_VALUE')
+        balances = _calculate_balances(self.group)
+        self.assertEqual(balances[self.dono.id], Decimal('20.00'))
+        self.assertEqual(balances[self.ana.id], Decimal('-20.00'))
+
+    def test_pagaram_por_porcentagem(self):
+        self._post(
+            pay_method='UNEQUAL_PERCENTAGE',
+            **{f'pay_perc_{self.ana.id}': '25', f'pay_perc_{self.bia.id}': '75'},
+        )
+        pagos = {p.participant_id: p.amount_paid for p in Expense.objects.get().payers.all()}
+        self.assertEqual(pagos, {self.ana.id: Decimal('25.00'), self.bia.id: Decimal('75.00')})
+
+    def test_soma_paga_diferente_do_total_e_recusada(self):
+        resp = self._post(
+            pay_method='UNEQUAL_VALUE',
+            **{f'pay_user_{self.dono.id}': '70,00', f'pay_user_{self.ana.id}': '10,00'},
+        )
+        self.assertContains(resp, 'do que cada um pagou')
+        self.assertFalse(Expense.objects.exists())
+
+    def test_ninguem_marcado_como_pagador_e_recusado(self):
+        resp = self._post(payer_include=[])
+        self.assertContains(resp, 'Marque quem pagou')
+        self.assertFalse(Expense.objects.exists())
+
+    def test_um_so_marcado_vira_pagador_unico(self):
+        self._post(payer_include=[self.ana.id])
+        expense = Expense.objects.get()
+        self.assertEqual(expense.paid_by_id, self.ana.id)
+        self.assertFalse(expense.payers.exists())
+
+    def test_edicao_vem_com_pagadores_marcados(self):
+        self._post(payer_include=[self.dono.id, self.ana.id])
+        expense = Expense.objects.get()
+        resp = self.client.get(reverse('rachais:edit_expense', args=[self.group.id, expense.id]))
+        self.assertTrue(resp.context['initial']['multi_payer'])
+        pay_in = {p.id: p.pay_in for p in resp.context['participants']}
+        self.assertEqual(pay_in, {self.dono.id: True, self.ana.id: True, self.bia.id: False})
+
+    def test_editar_para_um_pagador_apaga_os_pagadores(self):
+        self._post(payer_include=[self.dono.id, self.ana.id])
+        expense = Expense.objects.get()
+        self.client.post(reverse('rachais:edit_expense', args=[self.group.id, expense.id]), {
+            'description': 'Rodada', 'amount': '100,00', 'paid_by': self.bia.id,
+            'split_method': 'EQUAL',
+        })
+        expense.refresh_from_db()
+        self.assertEqual(expense.paid_by_id, self.bia.id)
+        self.assertFalse(expense.payers.exists())
+        self.assertEqual(_calculate_balances(self.group)[self.bia.id], Decimal('66.67'))
+
+    def test_pagina_do_grupo_mostra_quem_pagou(self):
+        self._post(payer_include=[self.dono.id, self.ana.id])
+        resp = self.client.get(reverse('rachais:group_detail', args=[self.group.id]))
+        self.assertContains(resp, 'Dono e Ana pagaram · R$ 50,00 cada')
+
+    def test_coautor_do_pagamento_pode_editar(self):
+        outro = User.objects.create_user(username='outro', first_name='Outro', password='senhaSuperF0rte')
+        outro_p = Participant.objects.create(group=self.group, user=outro)
+        self._post(payer_include=[self.dono.id, outro_p.id])
+        expense = Expense.objects.get()
+        self.assertEqual(expense.paid_by_id, self.dono.id)
+        self.client.force_login(outro)
+        resp = self.client.get(reverse('rachais:edit_expense', args=[self.group.id, expense.id]))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_quitar_divida_de_despesa_com_varios_pagadores(self):
+        self._post(
+            pay_method='UNEQUAL_VALUE',
+            **{f'pay_user_{self.dono.id}': '70,00', f'pay_user_{self.ana.id}': '30,00'},
+            split_select='1', split_include=[self.dono.id, self.ana.id],
+        )
+        self.client.post(reverse('rachais:pay_debt'), {
+            'group_id': self.group.id, 'payer_id': self.ana.id,
+            'receiver_id': self.dono.id, 'amount': '20.00',
+        })
+        self.assertEqual(Payment.objects.count(), 1)
+        balances = _calculate_balances(self.group)
+        self.assertEqual(balances[self.dono.id], Decimal('0'))
+        self.assertEqual(balances[self.ana.id], Decimal('0'))

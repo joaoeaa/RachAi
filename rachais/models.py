@@ -52,6 +52,15 @@ class Group(models.Model):
         blank=True,
         editable=False,
     )
+    # Código do link "só para ver" (grupos gerenciados): quem abre vê saldos e
+    # despesas sem conta e sem poder mudar nada. Trocar o código derruba o antigo.
+    share_token = models.CharField(
+        max_length=32,
+        unique=True,
+        null=True,
+        blank=True,
+        editable=False,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -80,6 +89,18 @@ class Group(models.Model):
         self.save(update_fields=["invite_token"])
         return self.invite_token
 
+    def ensure_share_token(self):
+        """Devolve o código do link de visualização, criando um na primeira vez."""
+        if not self.share_token:
+            self.regenerate_share_token()
+        return self.share_token
+
+    def regenerate_share_token(self):
+        """Troca o código do link de visualização; o link antigo para de abrir."""
+        self.share_token = secrets.token_urlsafe(12)
+        self.save(update_fields=["share_token"])
+        return self.share_token
+
     def __str__(self):
         return self.name
 
@@ -104,6 +125,10 @@ class Participant(models.Model):
         blank=True,
         verbose_name="Nome do participante avulso",
     )
+    # Preenchido quando o dono remove alguém que já tem histórico no grupo: as
+    # despesas e acertos antigos continuam de pé (e as contas fechando), mas a
+    # pessoa some da lista e não entra em despesas novas.
+    left_at = models.DateTimeField(null=True, blank=True, verbose_name="Removido do grupo em")
 
     class Meta:
         constraints = [
@@ -126,6 +151,10 @@ class Participant(models.Model):
     @property
     def is_guest(self):
         return self.user_id is None
+
+    @property
+    def is_active(self):
+        return self.left_at is None
 
     @property
     def display_name(self):
@@ -170,6 +199,13 @@ class Expense(models.Model):
         through='ExpenseSplit',
         related_name='expenses_participated'
     )
+    # Como o valor foi rachado entre quem pagou, quando mais de uma pessoa pagou
+    # (aí os valores ficam em ExpensePayer). Com um pagador só, vale o paid_by.
+    pay_split_method = models.CharField(
+        max_length=20,
+        choices=SPLIT_METHOD_CHOICES,
+        default='EQUAL',
+    )
     def __str__(self):
         return f"{self.description} (R$ {self.amount}) em {self.group.name}"
 
@@ -186,6 +222,25 @@ class ExpenseSplit(models.Model):
         unique_together=('expense','participant')
     def __str__(self):
         return f"{self.participant.display_name} deve R$ {self.amount_owed} para {self.expense.description}"
+
+class ExpensePayer(models.Model):
+    """
+    Quanto cada pessoa pôs numa despesa paga por mais de uma pessoa.
+
+    Só existe para despesas com dois ou mais pagadores; nesse caso estas linhas
+    valem no lugar do ``Expense.paid_by`` (que fica apontando para quem pagou
+    mais, para exibição). Despesa sem linhas aqui: pagou só o ``paid_by``.
+    """
+    expense = models.ForeignKey(Expense, on_delete=models.CASCADE, related_name='payers')
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name='expense_payments')
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="valor pago")
+
+    class Meta:
+        unique_together = ('expense', 'participant')
+
+    def __str__(self):
+        return f"{self.participant.display_name} pagou R$ {self.amount_paid} de {self.expense.description}"
+
 
 class Payment(models.Model):
     group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="payments")

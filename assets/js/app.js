@@ -173,18 +173,9 @@
 
   function setupExpenseForm(form) {
     var amountInput = form.querySelector("#amount");
-    var valueInputs = Array.prototype.slice.call(form.querySelectorAll(".split-input-value"));
-    var percInputs = Array.prototype.slice.call(form.querySelectorAll(".split-input-perc"));
-    var eqCells = Array.prototype.slice.call(form.querySelectorAll("[data-eq-share]"));
-    var pcCells = Array.prototype.slice.call(form.querySelectorAll("[data-pc-amount]"));
-    var statusMsg = form.querySelector("[data-split-msg]");
-    var statusText = form.querySelector("[data-split-text]");
-    var statusProgress = form.querySelector("[data-split-progress]");
-    var bar = form.querySelector("[data-split-bar]");
-    var okIcon = form.querySelector("[data-split-ok]");
-    var badIcon = form.querySelector("[data-split-bad]");
     var submit = form.querySelector("[data-expense-submit]");
-    var count = eqCells.length;
+    var multiPayer = form.querySelector("#multi_payer");
+    var payerSelect = form.querySelector("#paid_by");
 
     // Mesmas regras do servidor (views.py): em valores o ponto é milhar
     // ("1.234,56"); em porcentagem o ponto é decimal ("60.5").
@@ -203,74 +194,153 @@
       return "R$ " + fixed[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + fixed[1];
     }
     function pct(n) { return String(Math.round(n * 100) / 100).replace(".", ","); }
-    function method() {
-      var checked = form.querySelector('input[name="split_method"]:checked');
-      return checked ? checked.value : "EQUAL";
-    }
+    function all(root, sel) { return Array.prototype.slice.call(root.querySelectorAll(sel)); }
 
-    function render() {
-      var total = parse(amountInput.value);
-      var m = method();
-      var ok = true, text, progress, width = 100;
+    // Um quadro de partes: "split" (quem consumiu) ou "pay" (quem pagou).
+    function makeArea(box) {
+      var kind = box.dataset.shareArea;
+      var methodName = kind === "pay" ? "pay_method" : "split_method";
+      var valueInputs = all(box, ".split-input-value");
+      var percInputs = all(box, ".split-input-perc");
+      var eqCells = all(box, "[data-eq-share]");
+      var pcCells = all(box, "[data-pc-amount]");
+      var checks = all(box, 'input[type="checkbox"]');
+      var statusMsg = box.querySelector("[data-split-msg]");
+      var statusText = box.querySelector("[data-split-text]");
+      var statusProgress = box.querySelector("[data-split-progress]");
+      var bar = box.querySelector("[data-split-bar]");
+      var okIcon = box.querySelector("[data-split-ok]");
+      var badIcon = box.querySelector("[data-split-bad]");
+      var toggleAll = box.querySelector("[data-split-toggle-all]");
+      var area = { kind: kind, ok: true, blocking: false };
 
-      var share = count ? total / count : 0;
-      eqCells.forEach(function (cell) { cell.textContent = brl(share); });
-      pcCells.forEach(function (cell, i) {
-        cell.textContent = "= " + brl(total * parsePct(percInputs[i] && percInputs[i].value) / 100);
-      });
-
-      if (m === "UNEQUAL_VALUE") {
-        var sum = valueInputs.reduce(function (a, el) { return a + parse(el.value); }, 0);
-        var diff = cents(total) - cents(sum);
-        ok = diff === 0 && total > 0;
-        text = ok ? "Fechou certinho" : (diff > 0 ? "Faltam " + brl(diff / 100) : "Passou " + brl(-diff / 100) + " do total");
-        progress = brl(sum) + " de " + brl(total);
-        width = total > 0 ? Math.min(100, sum / total * 100) : 0;
-        if (diff < 0) width = 100;
-      } else if (m === "UNEQUAL_PERCENTAGE") {
-        var psum = percInputs.reduce(function (a, el) { return a + parsePct(el.value); }, 0);
-        var pdiff = cents(100) - cents(psum);
-        ok = pdiff === 0 && total > 0;
-        text = ok ? "Fechou 100%" : (pdiff > 0 ? "Faltam " + pct(pdiff / 100) + "%" : "Passou " + pct(-pdiff / 100) + "% de 100");
-        progress = pct(psum) + "% de 100%";
-        width = pdiff < 0 ? 100 : Math.min(100, psum);
-      } else {
-        ok = total > 0;
-        text = count === 1 ? "Fica tudo com 1 pessoa" : "Dividido igualmente entre " + count + " pessoas";
-        progress = brl(total);
+      if (toggleAll) {
+        toggleAll.hidden = false;
+        toggleAll.addEventListener("click", function () {
+          var allOn = checks.every(function (c) { return c.checked; });
+          checks.forEach(function (c) { c.checked = !allOn; });
+          renderAll();
+        });
       }
 
-      statusText.textContent = text;
-      statusProgress.textContent = progress;
-      statusMsg.classList.toggle("is-bad", !ok);
-      bar.classList.toggle("is-bad", !ok);
-      bar.firstElementChild.style.width = width + "%";
-      okIcon.hidden = !ok;
-      badIcon.hidden = ok;
-      if (submit) submit.disabled = !ok && m !== "EQUAL";
+      function method() {
+        var checked = form.querySelector('input[name="' + methodName + '"]:checked');
+        return checked ? checked.value : "EQUAL";
+      }
+
+      area.render = function (total) {
+        var m = method();
+        var ok = true, text, progress, width = 100;
+
+        // Sem caixinhas (página antiga em cache), todo mundo entra.
+        var count = checks.length
+          ? checks.filter(function (c) { return c.checked; }).length
+          : eqCells.length;
+        var share = count ? total / count : 0;
+        eqCells.forEach(function (cell, i) {
+          var inIt = !checks.length || (checks[i] && checks[i].checked);
+          cell.textContent = inIt ? brl(share) : (kind === "pay" ? "não pagou" : "fora");
+          cell.classList.toggle("is-out", !inIt);
+        });
+        if (toggleAll) {
+          toggleAll.textContent = checks.every(function (c) { return c.checked; }) ? "Desmarcar todos" : "Marcar todos";
+        }
+        pcCells.forEach(function (cell, i) {
+          cell.textContent = "= " + brl(total * parsePct(percInputs[i] && percInputs[i].value) / 100);
+        });
+
+        if (m === "UNEQUAL_VALUE") {
+          var sum = valueInputs.reduce(function (a, el) { return a + parse(el.value); }, 0);
+          var diff = cents(total) - cents(sum);
+          ok = diff === 0 && total > 0;
+          text = ok ? "Fechou certinho" : (diff > 0 ? "Faltam " + brl(diff / 100) : "Passou " + brl(-diff / 100) + " do total");
+          progress = brl(sum) + " de " + brl(total);
+          width = total > 0 ? Math.min(100, sum / total * 100) : 0;
+          if (diff < 0) width = 100;
+        } else if (m === "UNEQUAL_PERCENTAGE") {
+          var psum = percInputs.reduce(function (a, el) { return a + parsePct(el.value); }, 0);
+          var pdiff = cents(100) - cents(psum);
+          ok = pdiff === 0 && total > 0;
+          text = ok ? "Fechou 100%" : (pdiff > 0 ? "Faltam " + pct(pdiff / 100) + "%" : "Passou " + pct(-pdiff / 100) + "% de 100");
+          progress = pct(psum) + "% de 100%";
+          width = pdiff < 0 ? 100 : Math.min(100, psum);
+        } else {
+          ok = total > 0 && count > 0;
+          if (kind === "pay") {
+            if (count === 0) text = "Marque quem pagou";
+            else if (count === 1) text = "Só 1 pessoa pagou";
+            else text = "Pago igualmente por " + count + " pessoas";
+          } else {
+            if (count === 0) text = "Marque quem entra na divisão";
+            else if (count === 1) text = "Fica tudo com 1 pessoa";
+            else text = "Dividido igualmente entre " + count + " pessoas";
+          }
+          progress = count > 1 ? brl(share) + " cada" : brl(total);
+          width = count ? 100 : 0;
+        }
+
+        statusText.textContent = text;
+        statusProgress.textContent = progress;
+        statusMsg.classList.toggle("is-bad", !ok);
+        bar.classList.toggle("is-bad", !ok);
+        bar.firstElementChild.style.width = width + "%";
+        okIcon.hidden = !ok;
+        badIcon.hidden = ok;
+        // Com valor zerado no modo Igual, deixa o navegador avisar do campo vazio.
+        area.blocking = !ok && (m !== "EQUAL" || count === 0);
+      };
+
+      // Com 2 pessoas, preencher uma parte completa a outra (como já era antes).
+      function complement(inputs, totalFn, decimals, parser) {
+        inputs.forEach(function (input) {
+          input.addEventListener("input", function () {
+            if (inputs.length === 2) {
+              var other = inputs[0] === input ? inputs[1] : inputs[0];
+              var rest = Math.max(0, totalFn() - parser(input.value));
+              other.value = rest.toFixed(decimals).replace(".", ",");
+            }
+            renderAll();
+          });
+        });
+      }
+      complement(valueInputs, function () { return parse(amountInput.value); }, 2, parse);
+      complement(percInputs, function () { return 100; }, 1, parsePct);
+      valueInputs.concat(percInputs).forEach(function (el) { el.addEventListener("change", renderAll); });
+
+      return area;
     }
 
-    // Com 2 pessoas, preencher uma parte completa a outra (como já era antes).
-    function complement(inputs, totalFn, decimals, parser) {
-      inputs.forEach(function (input) {
-        input.addEventListener("input", function () {
-          if (inputs.length === 2) {
-            var other = inputs[0] === input ? inputs[1] : inputs[0];
-            var rest = Math.max(0, totalFn() - parser(input.value));
-            other.value = rest.toFixed(decimals).replace(".", ",");
-          }
-          render();
-        });
+    var areas = all(form, "[data-share-area]").map(makeArea);
+
+    // Ao ligar "mais de uma pessoa", já marca quem estava escolhido no select.
+    if (multiPayer) {
+      multiPayer.addEventListener("change", function () {
+        if (!multiPayer.checked || !payerSelect || !payerSelect.value) return;
+        var boxes = all(form, 'input[name="payer_include"]');
+        if (boxes.some(function (c) { return c.checked; })) return;
+        boxes.forEach(function (c) { if (c.value === payerSelect.value) c.checked = true; });
+        renderAll();
       });
     }
-    complement(valueInputs, function () { return parse(amountInput.value); }, 2, parse);
-    complement(percInputs, function () { return 100; }, 1, parsePct);
 
-    amountInput.addEventListener("input", render);
+    function renderAll() {
+      var total = parse(amountInput.value);
+      var multi = multiPayer && multiPayer.checked;
+      var blocked = false;
+      areas.forEach(function (area) {
+        area.render(total);
+        // O quadro de pagamento só conta quando "mais de uma pessoa" está ligado.
+        if (area.kind !== "pay" || multi) blocked = blocked || area.blocking;
+      });
+      if (payerSelect) payerSelect.required = !multi;
+      if (submit) submit.disabled = blocked;
+    }
+
+    amountInput.addEventListener("input", renderAll);
     // "change" cobre preenchimento automático, colar e valores definidos por script.
     // Fica em cada campo também: um "change" disparado por script não sobe até o form.
-    form.addEventListener("change", render);
-    valueInputs.concat(percInputs, [amountInput]).forEach(function (el) { el.addEventListener("change", render); });
-    render();
+    form.addEventListener("change", renderAll);
+    amountInput.addEventListener("change", renderAll);
+    renderAll();
   }
 })();

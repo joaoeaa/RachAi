@@ -1,0 +1,135 @@
+{% extends "rachais/base.html" %}
+{% load rachai %}
+{% comment %}
+  Link "só para ver" de um grupo gerenciado. Abre sem login e não tem nenhum
+  formulário: só leitura de saldos, quem paga quem, despesas e acertos.
+{% endcomment %}
+
+{% block title %}{% if invalid %}Link indisponível{% else %}{{ group.name }}{% endif %} · RachAi{% endblock %}
+
+{% block extra_head %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block body %}
+<header class="shared-top glass">
+  <a class="brand" href="{% url 'accounts:login' %}" aria-label="RachAi">
+    {% include "rachais/_brand_mark.html" %}
+    <span class="brand-name">Rach<span>Ai</span></span>
+  </a>
+  {% if not invalid %}<span class="pill pill-neutral">{% icon "eye" 15 %}Só para ver</span>{% endif %}
+</header>
+
+<main class="shared-main" id="conteudo">
+  <div class="page">
+    {% if invalid %}
+      <section class="card empty">
+        <span class="tile t-neg">{% icon "link-off" 24 %}</span>
+        <h1 style="font-size: 20px; font-weight: 800">Esse link não abre mais</h1>
+        <p>Quem organiza o grupo pode ter gerado um link novo. Peça o atualizado.</p>
+      </section>
+    {% else %}
+      <section class="hero-card shared-hero">
+        <div class="shared-hero-head">
+          <span class="tile tile-lg shared-tile">{% icon group.name|group_icon 28 %}</span>
+          <div style="min-width: 0">
+            <h1>{{ group.name }}</h1>
+            <p>Organizado por {{ creator_name }} · {{ participants|length }} pessoa{{ participants|length|pluralize }}</p>
+          </div>
+        </div>
+        <div class="split">
+          <p>Total gasto<strong class="num">{{ total|brl }}</strong></p>
+          <p>Despesas<strong class="num">{{ expenses|length }}</strong></p>
+          <p>Acertos pendentes<strong class="num">{{ settlements|length }}</strong></p>
+        </div>
+      </section>
+
+      <div class="group-cols">
+        <div class="group-col-main">
+          <section class="card card-pad" aria-labelledby="who-pays-title">
+            <h2 class="sec-h" id="who-pays-title">Quem paga quem</h2>
+            {% if settlements %}
+              <ul class="transfer-list">
+                {% for s in settlements %}
+                  <li class="transfer-item"><strong>{% include "rachais/_person.html" with p=s.person_from %}</strong> paga <strong class="num">{{ s.amount|brl }}</strong> para <strong>{% include "rachais/_person.html" with p=s.person_to tag=True %}</strong></li>
+                {% endfor %}
+              </ul>
+              <p class="hint">Toque no nome de quem recebe para ver a chave Pix, se a pessoa cadastrou.</p>
+            {% else %}
+              <p class="empty-mini">{% icon "check" 20 "ic-pos" %}Tudo acertado. Ninguém deve nada a ninguém.</p>
+            {% endif %}
+          </section>
+
+          <section class="card card-pad expenses" aria-labelledby="expenses-title">
+            <h2 class="sec-h" id="expenses-title">Despesas</h2>
+            {% if expenses %}
+              <ul class="list-box">
+                {% for e in expenses %}
+                  <li class="expense-row">
+                    <span class="avatar av-{{ e.paid_by_id|tone }}">{{ e.paid_by.display_name|initials }}</span>
+                    <div class="row-main">
+                      <p class="row-title">{{ e.description }}</p>
+                      <p class="row-meta">{{ e.payer_text }} · {{ e.created_at|date:"d/m/Y" }}</p>
+                    </div>
+                    <span class="expense-amt num">{{ e.amount|brl }}</span>
+                    <div class="expense-foot"><p class="expense-split">{{ e.split_text }}</p></div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="empty-mini">{% icon "receipt" %}Nenhuma despesa lançada ainda.</p>
+            {% endif %}
+          </section>
+
+          {% if payments %}
+            <section class="card card-pad" aria-labelledby="payments-title">
+              <h2 class="sec-h" id="payments-title">Acertos já feitos</h2>
+              <ul class="list-box">
+                {% for payment in payments %}
+                  <li class="row">
+                    <span class="tile tile-sm t-pos" style="width: 36px; height: 36px; border-radius: 11px">{% icon "check" 18 %}</span>
+                    <div class="row-main">
+                      <p class="row-title" style="font-size: 14px">{{ payment.payer.display_name }} pagou {{ payment.receiver.display_name }}</p>
+                      <p class="row-meta num">{{ payment.amount|brl }} · {{ payment.created_at|date:"d/m/Y" }}</p>
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            </section>
+          {% endif %}
+        </div>
+
+        <div class="group-col-side">
+          <section class="card card-pad" aria-labelledby="balances-title">
+            <h2 class="sec-h" id="balances-title">Saldos</h2>
+            <ul class="balance-list">
+              {% for p in balance_rows %}
+                <li class="balance-item">
+                  <span class="avatar av-{{ p.id|tone }}">{{ p.display_name|initials }}</span>
+                  <div style="min-width: 0">
+                    <p style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 700; font-size: 15px">
+                      {% include "rachais/_person.html" with p=p sub=p.pix_sub tag=True %}
+                    </p>
+                    <div class="balance-bar" aria-hidden="true">
+                      <span>{% if p.balance < 0 %}<i class="neg-bar" style="width: {{ p.bar }}%"></i>{% endif %}</span>
+                      <span>{% if p.balance > 0 %}<i class="pos-bar" style="width: {{ p.bar }}%"></i>{% endif %}</span>
+                    </div>
+                  </div>
+                  <div class="amount">
+                    {% if p.balance > 0 %}<p class="num pos">{{ p.balance|brl_signed }}</p><p class="pos">a receber</p>
+                    {% elif p.balance < 0 %}<p class="num neg">{{ p.balance|brl_signed }}</p><p class="neg">a pagar</p>
+                    {% else %}<p class="num muted">R$ 0,00</p><p class="muted">em dia</p>{% endif %}
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          </section>
+          <p class="hint shared-foot">{% icon "lock" 16 %}<span>Página só de leitura. Para mudar algo, fale com {{ creator_name }}.</span></p>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}
+
+{% block dialogs %}
+  {% if not invalid %}{% include "rachais/_person_dialog.html" with readonly=True %}{% endif %}
+{% endblock %}

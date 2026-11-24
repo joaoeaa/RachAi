@@ -1,0 +1,53 @@
+{% load rachai %}
+{% comment %}
+  Quadro de partes por pessoa do formulário de despesa. Serve para quem consumiu
+  (kind="split") e para quem pagou (kind="pay"). Mostra caixinhas no modo Igual,
+  um valor em R$ no modo Valores e uma porcentagem no modo Porcento; o app.js
+  faz as contas ao vivo. Parâmetros: kind, title, count (marcados no Igual).
+{% endcomment %}
+<div class="split-box {% if kind == 'pay' %}pay-area{% else %}split-area{% endif %}" data-share-area="{{ kind }}">
+  {% if kind == 'pay' %}<input type="hidden" name="payer_select" value="1">{% else %}<input type="hidden" name="split_select" value="1">{% endif %}
+  <div class="split-pick-head">
+    <p class="label" id="{{ kind }}-pick-label">{{ title }}</p>
+    <button class="btn btn-ghost btn-sm" type="button" data-split-toggle-all hidden>Desmarcar todos</button>
+  </div>
+  <ul aria-labelledby="{{ kind }}-pick-label">
+    {% for p in participants %}
+      <li class="split-row">
+        <label class="split-check">
+          {% if kind == 'pay' %}
+            <input type="checkbox" name="payer_include" value="{{ p.id }}"{% if p.pay_in %} checked{% endif %} aria-label="{{ p.display_name }} ajudou a pagar">
+          {% else %}
+            <input type="checkbox" name="split_include" value="{{ p.id }}"{% if p.split_in %} checked{% endif %} aria-label="{{ p.display_name }} entra na divisão">
+          {% endif %}
+          <span class="split-check-box" aria-hidden="true">{% icon "check" 16 %}</span>
+        </label>
+        <span class="avatar av-{{ p.id|tone }}">{{ p.display_name|initials }}</span>
+        <label for="{{ kind }}_user_{{ p.id }}">{{ p.display_name }}</label>
+        <span class="split-eq num" data-eq-share>—</span>
+        <div class="split-ex">
+          <span class="split-unit" aria-hidden="true">R$</span>
+          <input class="split-in split-input-value" id="{{ kind }}_user_{{ p.id }}" name="{{ kind }}_user_{{ p.id }}" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00" value="{% if kind == 'pay' %}{{ p.pay_value }}{% else %}{{ p.split_value }}{% endif %}">
+        </div>
+        <div class="split-pc">
+          <div>
+            <input class="split-in split-input-perc" id="{{ kind }}_perc_{{ p.id }}" name="{{ kind }}_perc_{{ p.id }}" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{% if kind == 'pay' %}{{ p.pay_perc }}{% else %}{{ p.split_perc }}{% endif %}" aria-label="Porcentagem de {{ p.display_name }}">
+            <span class="split-unit" aria-hidden="true">%</span>
+          </div>
+          <small class="num" data-pc-amount></small>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+  <div class="split-status" role="status" aria-live="polite">
+    <div class="split-status-row">
+      <span class="split-status-msg" data-split-msg>
+        <span data-split-ok>{% icon "check-circle" 18 %}</span>
+        <span data-split-bad hidden>{% icon "alert" 18 %}</span>
+        <span data-split-text>{% if kind == 'pay' %}Pago igualmente por {{ count }} pessoa{{ count|pluralize }}{% else %}Dividido igualmente entre {{ count }} pessoa{{ count|pluralize }}{% endif %}</span>
+      </span>
+      <span class="num hint" style="font-weight: 600" data-split-progress></span>
+    </div>
+    <div class="bar" data-split-bar><span></span></div>
+  </div>
+</div>

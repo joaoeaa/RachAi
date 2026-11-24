@@ -45,16 +45,34 @@
     <input class="input" id="description" name="description" type="text" maxlength="255" placeholder="Ex.: Pizza de sábado" value="{{ initial.description }}" required>
   </div>
 
-  <div class="field">
-    <label class="label" for="paid_by">Quem pagou</label>
-    <div class="with-icon">
-      <select class="input" id="paid_by" name="paid_by" style="padding-left: 14px" required>
+  <div class="field pay-field">
+    <div class="pay-head">
+      <label class="label" for="paid_by">Quem pagou</label>
+      <label class="switch">
+        <input type="checkbox" id="multi_payer" name="multi_payer" value="on"{% if initial.multi_payer %} checked{% endif %}>
+        <span class="switch-track" aria-hidden="true"></span>
+        Mais de uma pessoa
+      </label>
+    </div>
+    <div class="with-icon pay-single">
+      <select class="input" id="paid_by" name="paid_by" style="padding-left: 14px">
         <option value="">Selecione</option>
         {% for p in participants %}
           <option value="{{ p.id }}"{% if initial.paid_by == p.id|stringformat:"s" %} selected{% endif %}>{{ p.display_name }}</option>
         {% endfor %}
       </select>
       {% icon "chevron-down" 20 "ic-end" %}
+    </div>
+    <div class="pay-multi">
+      <fieldset>
+        <legend class="sr-only">Como o pagamento foi dividido</legend>
+        <div class="seg">
+          <label class="seg-opt"><input type="radio" id="pm-EQUAL" name="pay_method" value="EQUAL"{% if initial.pay_method == 'EQUAL' or not initial.pay_method %} checked{% endif %}>{% icon "equal" 18 %}Igual</label>
+          <label class="seg-opt"><input type="radio" id="pm-UNEQUAL_VALUE" name="pay_method" value="UNEQUAL_VALUE"{% if initial.pay_method == 'UNEQUAL_VALUE' %} checked{% endif %}><span style="font-size: 13px; font-weight: 800" aria-hidden="true">R$</span>Valores</label>
+          <label class="seg-opt"><input type="radio" id="pm-UNEQUAL_PERCENTAGE" name="pay_method" value="UNEQUAL_PERCENTAGE"{% if initial.pay_method == 'UNEQUAL_PERCENTAGE' %} checked{% endif %}>{% icon "percent" 18 %}Porcento</label>
+        </div>
+      </fieldset>
+      {% include "rachais/_share_box.html" with kind="pay" title="Quem ajudou a pagar" count=paying_count %}
     </div>
   </div>
 
@@ -67,39 +85,7 @@
     </div>
   </fieldset>
 
-  <div class="split-box">
-    <ul>
-      {% for p in participants %}
-        <li class="split-row">
-          <span class="avatar av-{{ p.id|tone }}">{{ p.display_name|initials }}</span>
-          <label for="split_user_{{ p.id }}">{{ p.display_name }}</label>
-          <span class="split-eq num" data-eq-share>—</span>
-          <div class="split-ex">
-            <span class="split-unit" aria-hidden="true">R$</span>
-            <input class="split-in split-input-value" id="split_user_{{ p.id }}" name="split_user_{{ p.id }}" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00" value="{{ p.split_value }}">
-          </div>
-          <div class="split-pc">
-            <div>
-              <input class="split-in split-input-perc" id="split_perc_{{ p.id }}" name="split_perc_{{ p.id }}" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ p.split_perc }}" aria-label="Porcentagem de {{ p.display_name }}">
-              <span class="split-unit" aria-hidden="true">%</span>
-            </div>
-            <small class="num" data-pc-amount></small>
-          </div>
-        </li>
-      {% endfor %}
-    </ul>
-    <div class="split-status" role="status" aria-live="polite">
-      <div class="split-status-row">
-        <span class="split-status-msg" data-split-msg>
-          <span data-split-ok>{% icon "check-circle" 18 %}</span>
-          <span data-split-bad hidden>{% icon "alert" 18 %}</span>
-          <span data-split-text>Dividido igualmente entre {{ participants|length }} pessoa{{ participants|length|pluralize }}</span>
-        </span>
-        <span class="num hint" style="font-weight: 600" data-split-progress></span>
-      </div>
-      <div class="bar" data-split-bar><span></span></div>
-    </div>
-  </div>
+  {% include "rachais/_share_box.html" with kind="split" title="Quem entra na divisão" count=included_count %}
 
   <div class="form-actions glass">
     <a class="btn btn-secondary" href="{% url 'rachais:group_detail' group.id %}">Cancelar</a>

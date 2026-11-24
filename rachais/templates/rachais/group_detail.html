@@ -11,7 +11,11 @@
         <p class="m-top-name">{{ group.name }}</p>
         <p>{{ participants|length }} pessoa{{ participants|length|pluralize }} · {% if group.is_managed %}Gerenciado{% else %}Colaborativo{% endif %}</p>
       </div>
-      <a class="icon-btn" href="{% url 'rachais:add_expense' group.id %}" aria-label="Adicionar despesa">{% icon "receipt" %}</a>
+      {% if can_manage %}
+        <button class="icon-btn" type="button" data-open-dialog="manage-dialog" aria-haspopup="dialog" aria-label="Gerenciar grupo">{% icon "settings" %}</button>
+      {% else %}
+        <a class="icon-btn" href="{% url 'rachais:add_expense' group.id %}" aria-label="Adicionar despesa">{% icon "receipt" %}</a>
+      {% endif %}
     </div>
     <nav class="m-chips" aria-label="Seus grupos">
       {% for g in groups %}
@@ -41,7 +45,12 @@
       </div>
     </div>
   </div>
-  <a class="btn btn-primary" href="{% url 'rachais:add_expense' group.id %}">{% icon "plus" %}Adicionar despesa</a>
+  <div class="group-head-actions">
+    {% if can_manage %}
+      <button class="btn btn-secondary" type="button" data-open-dialog="manage-dialog" aria-haspopup="dialog">{% icon "settings" 18 %}Gerenciar</button>
+    {% endif %}
+    <a class="btn btn-primary" href="{% url 'rachais:add_expense' group.id %}">{% icon "plus" %}Adicionar despesa</a>
+  </div>
 </div>
 
 {% if group.is_managed %}
@@ -153,7 +162,7 @@
         {% if my_debts.paid %}
           <ul class="list-box">
             {% for payment in my_debts.paid %}
-              <li class="row">
+              <li class="row pay-row">
                 <span class="tile tile-sm t-pos" style="width: 36px; height: 36px; border-radius: 11px">{% icon "check" 18 %}</span>
                 <div class="row-main">
                   <p class="row-title" style="font-size: 14px">
@@ -181,7 +190,7 @@
       </div>
     </section>
 
-    <section class="card card-pad" aria-labelledby="expenses-title">
+    <section class="card card-pad expenses" aria-labelledby="expenses-title">
       <div class="section-head">
         <h2 class="sec-h" id="expenses-title">Despesas</h2>
         <a class="btn btn-ghost btn-sm" href="{% url 'rachais:add_expense' group.id %}">{% icon "plus" 18 %}Adicionar</a>
@@ -189,28 +198,28 @@
       {% if expenses %}
         <ul class="list-box">
           {% for e in expenses %}
-            <li class="row" style="padding-right: 6px">
+            <li class="expense-row">
               <span class="avatar av-{{ e.paid_by_id|tone }}">{{ e.paid_by.display_name|initials }}</span>
               <div class="row-main">
                 <p class="row-title">{{ e.description }}</p>
-                <p class="row-meta">{{ e.paid_by.display_name }} pagou · {{ e.created_at|date:"d/m/Y" }}</p>
-                <p class="expense-split">
-                  {{ e.get_split_method_display }}{% if e.split_list %}:
-                    {% for s in e.split_list %}{{ s.name }} {{ s.amount|brl }}{% if not forloop.last %} · {% endif %}{% endfor %}
-                  {% else %} · ninguém para dividir ainda{% endif %}
-                </p>
+                <p class="row-meta">{{ e.payer_text }} · {{ e.created_at|date:"d/m/Y" }}</p>
               </div>
-              <span class="num" style="font-weight: 800; white-space: nowrap">{{ e.amount|brl }}</span>
-              {% if e.can_edit %}
-                <a class="icon-btn" href="{% url 'rachais:edit_expense' group.id e.id %}" aria-label="Editar {{ e.description }}">{% icon "edit" 18 %}</a>
-                <form method="post" action="{% url 'rachais:delete_expense' group.id e.id %}"
-                      data-confirm="Excluir despesa?"
-                      data-confirm-body="“{{ e.description }}” ({{ e.amount|brl }}) sai do grupo e os saldos são recalculados. Isso não dá para desfazer."
-                      data-confirm-ok="Excluir" data-confirm-tone="danger">
-                  {% csrf_token %}
-                  <button class="icon-btn del" type="submit" aria-label="Excluir {{ e.description }}">{% icon "trash" 18 %}</button>
-                </form>
-              {% endif %}
+              <span class="expense-amt num">{{ e.amount|brl }}</span>
+              <div class="expense-foot">
+                <p class="expense-split">{{ e.split_text }}</p>
+                {% if e.can_edit %}
+                  <div class="expense-actions">
+                    <a class="icon-btn" href="{% url 'rachais:edit_expense' group.id e.id %}" aria-label="Editar {{ e.description }}">{% icon "edit" 18 %}</a>
+                    <form method="post" action="{% url 'rachais:delete_expense' group.id e.id %}"
+                          data-confirm="Excluir despesa?"
+                          data-confirm-body="“{{ e.description }}” ({{ e.amount|brl }}) sai do grupo e os saldos são recalculados. Isso não dá para desfazer."
+                          data-confirm-ok="Excluir" data-confirm-tone="danger">
+                      {% csrf_token %}
+                      <button class="icon-btn del" type="submit" aria-label="Excluir {{ e.description }}">{% icon "trash" 18 %}</button>
+                    </form>
+                  </div>
+                {% endif %}
+              </div>
             </li>
           {% endfor %}
         </ul>
@@ -270,6 +279,41 @@
         </form>
       {% endif %}
 
+      {% if share_url %}
+        <button class="btn btn-secondary invite-open" type="button" data-open-dialog="share-dialog" aria-haspopup="dialog">{% icon "eye" 18 %}Compartilhar para ver</button>
+        <dialog class="dlg invite-sheet" id="share-dialog" aria-labelledby="share-title">
+          <div class="dlg-head">
+            <span class="tile t-primary" style="width: 44px; height: 44px">{% icon "eye" %}</span>
+            <div class="row-main">
+              <h3 class="dlg-title" id="share-title">Compartilhar para ver</h3>
+              <p class="hint" style="margin-top: 4px; font-size: 14px">Quem abrir o link vê saldos, despesas e quem paga quem, sem precisar de conta. Ninguém consegue alterar nada.</p>
+            </div>
+            <button class="icon-btn invite-close" type="button" data-close-dialog aria-label="Fechar">{% icon "x" %}</button>
+          </div>
+          <div class="field">
+            <label class="eyebrow" for="share_link">Link só para ver</label>
+            <div class="inline-row">
+              <input class="input input-link" id="share_link" type="text" value="{{ share_url }}" readonly>
+              <button class="btn btn-secondary" type="button" data-copy-target="share_link" style="min-height: 48px">{% icon "copy" 18 %}<span data-copy-label>Copiar</span></button>
+            </div>
+          </div>
+          <div class="inline-row share-actions">
+            <a class="btn btn-primary" href="https://wa.me/?text={{ 'Olha como ficaram as contas do grupo "'|urlencode }}{{ group.name|urlencode }}{{ '" no RachAi: '|urlencode }}{{ share_url|urlencode }}" target="_blank" rel="noopener">{% icon "message" %}WhatsApp</a>
+            <a class="btn btn-secondary" href="{{ share_url }}" target="_blank" rel="noopener">{% icon "eye" 18 %}Ver como fica</a>
+          </div>
+          <div class="invite-regen">
+            <p class="hint">Quer cortar o acesso? Gere outro e o atual para de abrir.</p>
+            <form method="post" action="{% url 'rachais:regenerate_share' group.id %}"
+                  data-confirm="Gerar um novo link?"
+                  data-confirm-body="Quem tiver o link atual não vai mais conseguir ver o grupo."
+                  data-confirm-ok="Gerar novo link">
+              {% csrf_token %}
+              <button class="btn btn-ghost btn-sm" type="submit">{% icon "refresh" 18 %}Gerar novo</button>
+            </form>
+          </div>
+        </dialog>
+      {% endif %}
+
       {% if invite_url %}
         <button class="btn btn-secondary invite-open" type="button" data-open-dialog="invite-dialog" aria-haspopup="dialog">{% icon "user-plus" 18 %}Chamar mais gente</button>
         <dialog class="dlg invite-sheet" id="invite-dialog" aria-labelledby="invite-title">
@@ -316,4 +360,54 @@
 
 {% block page_dialogs %}
   {% include "rachais/_person_dialog.html" %}
+  {% if can_manage %}
+    <dialog class="dlg manage-sheet" id="manage-dialog" aria-labelledby="manage-title">
+      <div class="dlg-head">
+        <span class="tile t-primary" style="width: 44px; height: 44px">{% icon "settings" %}</span>
+        <div class="row-main">
+          <h2 class="dlg-title" id="manage-title">Gerenciar grupo</h2>
+          <p class="hint" style="margin-top: 4px; font-size: 14px">Só sai quem está com o saldo zerado. O que já foi lançado continua no histórico.</p>
+        </div>
+        <button class="icon-btn invite-close" type="button" data-close-dialog aria-label="Fechar">{% icon "x" %}</button>
+      </div>
+
+      <div class="field">
+        <p class="eyebrow">Participantes · {{ participants|length }}</p>
+        <ul class="list-box manage-list">
+          {% for p in participants %}
+            <li class="row">
+              <span class="avatar av-{{ p.id|tone }}">{{ p.display_name|initials }}</span>
+              <div class="row-main">
+                <p class="row-title">{{ p.display_name }}{% if p.user_id == user.id %} <span class="hint">(você)</span>{% endif %}</p>
+                <p class="row-meta{% if p.manage_warn %} neg{% endif %}">{{ p.manage_note }}</p>
+              </div>
+              {% if p.removable %}
+                <form method="post" action="{% url 'rachais:remove_participant' group.id p.id %}"
+                      data-confirm="Remover {{ p.display_name }}?"
+                      data-confirm-body="{{ p.display_name }} sai de {{ group.name }} e não entra mais em despesas novas. O que já foi lançado continua no histórico."
+                      data-confirm-ok="Remover" data-confirm-tone="danger">
+                  {% csrf_token %}
+                  <button class="icon-btn del" type="submit" aria-label="Remover {{ p.display_name }} do grupo">{% icon "user-minus" 20 %}</button>
+                </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <div class="danger-zone">
+        <div class="row-main">
+          <p style="font-weight: 800; font-size: 15px">Apagar grupo</p>
+          <p class="hint">Some com todas as despesas e acertos, para todo mundo.</p>
+        </div>
+        <form method="post" action="{% url 'rachais:delete_group' group.id %}"
+              data-confirm="Apagar “{{ group.name }}”?"
+              data-confirm-body="Todas as despesas, acertos e participantes do grupo são apagados para todo mundo. Isso não dá para desfazer."
+              data-confirm-ok="Apagar grupo" data-confirm-tone="danger">
+          {% csrf_token %}
+          <button class="btn btn-danger-ghost btn-sm" type="submit">{% icon "trash" 18 %}Apagar</button>
+        </form>
+      </div>
+    </dialog>
+  {% endif %}
 {% endblock %}

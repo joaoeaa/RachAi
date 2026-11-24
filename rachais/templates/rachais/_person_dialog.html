@@ -18,7 +18,7 @@
       <input class="sr-only" id="person-dialog-key" type="text" readonly tabindex="-1">
       <button class="btn btn-primary btn-sm" type="button" data-copy-target="person-dialog-key">{% icon "copy" 18 %}<span data-copy-label>Copiar</span></button>
     </div>
-    <p class="hint">Cole no app do seu banco. Depois de pagar, marque como pago em Minhas dívidas.</p>
+    <p class="hint">Cole no app do seu banco. {% if readonly %}Depois de pagar, avise quem organiza o grupo.{% else %}Depois de pagar, marque como pago em Minhas dívidas.{% endif %}</p>
   </div>
 
   <p class="empty-mini" style="align-items: flex-start" data-pix-none hidden>
